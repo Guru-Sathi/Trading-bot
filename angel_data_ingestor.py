@@ -1,6 +1,7 @@
 import os
 import requests
 import time
+import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -74,3 +75,23 @@ class AngelDataIngestor:
             current_start = current_end
 
         return master_data
+
+    def format_to_dataframe(self, raw_candle_list):
+        if not raw_candle_list:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(raw_candle_list, columns=['datetime', 'open', 'high', 'low', 'close', 'volume'])
+
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        df.set_index('datetime', inplace=True)
+
+        df['open'] = df['open'].astype(float)
+        df['high'] = df['high'].astype(float)
+        df['low'] = df['low'].astype(float)
+        df['close'] = df['close'].astype(float)
+        df['volume'] = df['volume'].astype(int)
+
+        return df
+
+    def save_to_csv(self, df, filename):
+        df.to_csv(filename)
