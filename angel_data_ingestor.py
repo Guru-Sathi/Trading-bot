@@ -1,6 +1,7 @@
 import os
 import requests
 import time
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 class AngelDataIngestor:
@@ -41,3 +42,35 @@ class AngelDataIngestor:
 
         time.sleep(0.5)
         return result
+
+    def fetch_data(self, symboltoken, interval, start_date_str, end_date_str):
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d %H:%M")
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d %H:%M")
+
+        master_data = []
+        current_start = start_date
+
+        # Define max days per chunk. Assuming 30 days for ONE_MINUTE.
+        # Extend logic here if other intervals have different limits.
+        max_days = 30 if interval == "ONE_MINUTE" else 30
+
+        while current_start < end_date:
+            current_end = current_start + timedelta(days=max_days)
+            if current_end > end_date:
+                current_end = end_date
+
+            payload = {
+                "exchange": "NSE",
+                "symboltoken": symboltoken,
+                "interval": interval,
+                "fromdate": current_start.strftime("%Y-%m-%d %H:%M"),
+                "todate": current_end.strftime("%Y-%m-%d %H:%M")
+            }
+
+            response_data = self._make_api_request(payload)
+            if response_data and "data" in response_data and response_data["data"]:
+                master_data.extend(response_data["data"])
+
+            current_start = current_end
+
+        return master_data
