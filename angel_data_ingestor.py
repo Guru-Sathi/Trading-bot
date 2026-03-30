@@ -1,5 +1,6 @@
 import os
 import requests
+import time
 from dotenv import load_dotenv
 
 class AngelDataIngestor:
@@ -23,3 +24,20 @@ class AngelDataIngestor:
             "X-MACAddress": self.mac_address,
             "X-PrivateKey": self.api_key
         }
+
+    def _make_api_request(self, payload_dict):
+        url = "https://apiconnect.angelone.in/rest/secure/angelbroking/historical/v1/getCandleData"
+
+        try:
+            response = requests.post(url, headers=self.headers, json=payload_dict)
+            if response.status_code == 200:
+                result = response.json()
+            else:
+                print(f"Error: Received status code {response.status_code}")
+                result = None
+        except Exception as e:
+            print(f"Error making API request: {e}")
+            result = None
+
+        time.sleep(0.5)
+        return result
