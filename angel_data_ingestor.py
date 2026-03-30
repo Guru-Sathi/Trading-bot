@@ -29,6 +29,35 @@ class AngelDataIngestor:
             "X-PrivateKey": self.api_key
         }
 
+        self._login()
+
+    def _login(self):
+        totp = pyotp.TOTP(self.totp_secret).now()
+
+        payload = {
+            "clientcode": self.client_code,
+            "password": self.pin,
+            "totp": totp
+        }
+
+        url = "https://apiconnect.angelone.in/rest/auth/angelbroking/user/v1/loginByPassword"
+
+        response = requests.post(url, headers=self.headers, json=payload)
+
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("status") is True:
+                jwt_token = result.get("data", {}).get("jwtToken")
+                if jwt_token:
+                    self.headers["Authorization"] = f"Bearer {jwt_token}"
+                else:
+                    raise Exception("Login succeeded but jwtToken not found in response data.")
+            else:
+                error_msg = result.get("message", "Unknown error")
+                raise Exception(f"Login failed: {error_msg}")
+        else:
+            raise Exception(f"Login request failed with status code: {response.status_code}, response: {response.text}")
+
     def _make_api_request(self, payload_dict):
         url = "https://apiconnect.angelone.in/rest/secure/angelbroking/historical/v1/getCandleData"
 
