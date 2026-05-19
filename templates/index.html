@@ -59,6 +59,48 @@
             </div>
         </a>
 
+        <!-- Mean Reversion Card -->
+        <a href="/strategy/mean-reversion" class="group block h-full">
+            <div class="glass-panel rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(236,72,153,0.2)] hover:border-pink-500/50 relative">
+
+                <!-- Glowing accent -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-pink-500 to-rose-500"></div>
+
+                <div class="p-6 flex-grow flex flex-col">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="p-3 bg-pink-500/10 rounded-xl">
+                            <svg class="h-8 w-8 text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                            </svg>
+                        </div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            Beta
+                        </span>
+                    </div>
+
+                    <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-pink-300 transition-colors">
+                        Mean Reversion
+                    </h3>
+
+                    <p class="text-slate-400 text-sm mb-6 flex-grow">
+                        Identifies overbought and oversold assets by calculating statistical deviations (Z-Scores) from their historical moving averages, betting on a return to the mean.
+                    </p>
+
+                    <!-- Stats summary -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto border-t border-slate-700/50 pt-4">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Market</p>
+                            <p class="text-sm font-semibold text-slate-200">NSE Equities</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Risk Profile</p>
+                            <p class="text-sm font-semibold text-amber-400">Medium</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+
         <!-- Placeholder for future strategies -->
         <div class="glass-panel rounded-2xl p-6 border-dashed border-2 border-slate-700 flex flex-col items-center justify-center text-center h-full min-h-[300px] opacity-50">
             <div class="p-3 bg-slate-800 rounded-xl mb-3">

@@ -11,6 +11,25 @@ def index():
 def cash_fut_arb():
     return render_template('strategy.html')
 
+@app.route('/strategy/mean-reversion')
+def mean_reversion():
+    return render_template('mean_reversion.html')
+
+@app.route('/api/mean-reversion')
+def api_mean_reversion():
+    # Mock data for frontend visualization
+    mock_data = [
+        {"stock": "RELIANCE-EQ", "ltp": 2450.50, "sma": 2550.00, "std_dev": 35.5, "z_score": -2.80},
+        {"stock": "TCS-EQ", "ltp": 3800.00, "sma": 3650.00, "std_dev": 60.0, "z_score": 2.50},
+        {"stock": "HDFCBANK-EQ", "ltp": 1600.00, "sma": 1580.00, "std_dev": 25.0, "z_score": 0.80},
+        {"stock": "INFY-EQ", "ltp": 1420.00, "sma": 1500.00, "std_dev": 20.0, "z_score": -4.00},
+        {"stock": "ITC-EQ", "ltp": 450.00, "sma": 445.00, "std_dev": 10.0, "z_score": 0.50},
+        {"stock": "SBIN-EQ", "ltp": 620.00, "sma": 590.00, "std_dev": 15.0, "z_score": 2.00},
+        {"stock": "ICICIBANK-EQ", "ltp": 980.00, "sma": 1010.00, "std_dev": 12.0, "z_score": -2.50},
+        {"stock": "BHARTIARTL-EQ", "ltp": 1150.00, "sma": 1100.00, "std_dev": 22.0, "z_score": 2.27},
+    ]
+    return jsonify({"status": "success", "data": mock_data})
+
 @app.route('/api/cash-fut-arb')
 def api_cash_fut_arb():
     try:
