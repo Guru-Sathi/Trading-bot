@@ -149,15 +149,15 @@ class AngelDataIngestor:
                 for pair in mappings:
                     spot_ltp = ltp_dict.get(pair['spot_token'])
                     fut_ltp = ltp_dict.get(pair['fut_token'])
-                    
+
                     if spot_ltp and fut_ltp:
                         diff = fut_ltp - spot_ltp
-                        
+
                         # Filter: Only keep if Futures price is HIGHER than Spot
                         if diff > 0:
                             lotsize = pair['lotsize']
                             pct_diff = (diff / spot_ltp) * 100
-                            
+
                             # Absolute calculations
                             gross_profit_per_lot = diff * lotsize
                             spot_capital_required = spot_ltp * lotsize
@@ -249,6 +249,111 @@ class AngelDataIngestor:
                             "ltp": float(ltp),
                             "sma": float(sma20),
                             "std_dev": float(std_dev),
+                            "z_score": float(z_score)
+                        })
+
+        return all_results
+
+    def get_predefined_pairs(self, mappings):
+        """Finds tokens for predefined highly correlated classic pairs."""
+        target_pairs = [
+            ("TCS-EQ", "INFY-EQ"),
+            ("HDFCBANK-EQ", "ICICIBANK-EQ"),
+            ("RELIANCE-EQ", "ONGC-EQ"),
+            ("BAJFINANCE-EQ", "BAJAJFINSV-EQ"),
+            ("MARUTI-EQ", "M&M-EQ"),
+            ("SUNPHARMA-EQ", "CIPLA-EQ"),
+            ("TATASTEEL-EQ", "JSWSTEEL-EQ"),
+            ("ULTRACEMCO-EQ", "SHREECEM-EQ"),
+            ("AXISBANK-EQ", "SBIN-EQ"),
+            ("HINDUNILVR-EQ", "BRITANNIA-EQ"),
+        ]
+
+        name_to_token = {item['name'] + "-EQ": item['spot_token'] for item in mappings}
+
+        pair_mappings = []
+        for stock_a, stock_b in target_pairs:
+            if stock_a in name_to_token and stock_b in name_to_token:
+                pair_mappings.append({
+                    "stock_a": stock_a,
+                    "token_a": name_to_token[stock_a],
+                    "stock_b": stock_b,
+                    "token_b": name_to_token[stock_b]
+                })
+
+        return pair_mappings
+
+    def analyze_stat_arb_batch(self, pair_batch):
+        """Analyzes a batch of stock pairs for Statistical Arbitrage."""
+        all_results = []
+
+        # 1. Fetch real-time LTPs for the batch
+        url = f"{self.base_url}rest/secure/angelbroking/market/v1/quote/"
+        nse_tokens = []
+        for pair in pair_batch:
+            nse_tokens.extend([pair['token_a'], pair['token_b']])
+
+        # Deduplicate
+        nse_tokens = list(set(nse_tokens))
+
+        payload = {
+            "mode": "LTP",
+            "exchangeTokens": {
+                "NSE": nse_tokens
+            }
+        }
+
+        ltp_dict = {}
+        response = requests.post(url, headers=self.headers, json=payload)
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("status") is True:
+                fetched_data = result.get("data", {}).get("fetched", [])
+                ltp_dict = {item['symbolToken']: item['ltp'] for item in fetched_data}
+
+        # 2. Process each pair
+        for pair in pair_batch:
+            token_a = pair['token_a']
+            token_b = pair['token_b']
+
+            ltp_a = ltp_dict.get(token_a)
+            ltp_b = ltp_dict.get(token_b)
+
+            if not ltp_a or not ltp_b:
+                continue
+
+            # Fetch historical data (e.g. 60 days to get a good 20-day correlation and SMA)
+            df_a = self.get_historical_data(token_a, days_back=60)
+            df_b = self.get_historical_data(token_b, days_back=60)
+
+            if df_a is not None and df_b is not None and not df_a.empty and not df_b.empty:
+                # Align data by datetime
+                df_merged = pd.merge(df_a[['datetime', 'close']], df_b[['datetime', 'close']], on='datetime', suffixes=('_a', '_b'))
+
+                if len(df_merged) >= 20:
+                    # Calculate ratio (Price A / Price B)
+                    df_merged['ratio'] = df_merged['close_a'] / df_merged['close_b']
+
+                    # Calculate Pearson Correlation for the last 20 days
+                    correlation = df_merged['close_a'].tail(20).corr(df_merged['close_b'].tail(20))
+
+                    # Calculate SMA and Std Dev of the Ratio over the last 20 days
+                    sma20 = df_merged['ratio'].rolling(window=20).mean().iloc[-1]
+                    std_dev = df_merged['ratio'].rolling(window=20).std().iloc[-1]
+
+                    # Current Ratio
+                    current_ratio = ltp_a / ltp_b
+
+                    if pd.notna(sma20) and pd.notna(std_dev) and std_dev > 0:
+                        z_score = (current_ratio - sma20) / std_dev
+
+                        all_results.append({
+                            "stock_a": pair['stock_a'],
+                            "stock_b": pair['stock_b'],
+                            "ltp_a": float(ltp_a),
+                            "ltp_b": float(ltp_b),
+                            "ratio": float(current_ratio),
+                            "correlation": float(correlation),
                             "z_score": float(z_score)
                         })
 

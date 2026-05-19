@@ -15,6 +15,10 @@ def cash_fut_arb():
 def mean_reversion():
     return render_template('mean_reversion.html')
 
+@app.route('/strategy/stat-arb')
+def stat_arb():
+    return render_template('stat_arb.html')
+
 # Global state for caching
 _ingestor = None
 _stock_mappings = None
@@ -86,6 +90,49 @@ def api_mean_reversion_batch(batch_id):
 
         reversion_stocks = ingestor.analyze_mean_reversion_batch(batch_mappings)
         return jsonify({"status": "success", "data": reversion_stocks})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+_stat_arb_pairs_cache = None
+
+def get_stat_arb_pairs():
+    global _stat_arb_pairs_cache
+    if _stat_arb_pairs_cache is None:
+        ingestor, mappings = get_ingestor_and_mappings()
+        if ingestor and mappings:
+            _stat_arb_pairs_cache = ingestor.get_predefined_pairs(mappings)
+    return _stat_arb_pairs_cache
+
+@app.route('/api/stat-arb/init')
+def api_stat_arb_init():
+    try:
+        ingestor, _ = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+            return jsonify({"status": "error", "message": "Failed to authenticate with Angel One API."}), 401
+
+        pairs = get_stat_arb_pairs()
+        import math
+        # Stat arb is heavy (2 historical calls per pair), so batch size of 2 is safe
+        total_batches = math.ceil(len(pairs) / 2.0)
+        return jsonify({"status": "success", "total_batches": total_batches})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/stat-arb/batch/<int:batch_id>')
+def api_stat_arb_batch(batch_id):
+    try:
+        ingestor, _ = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+             return jsonify({"status": "error", "message": "Failed to authenticate."}), 401
+
+        pairs = get_stat_arb_pairs()
+        start_idx = batch_id * 2
+        batch_pairs = pairs[start_idx:start_idx+2]
+
+        arb_results = ingestor.analyze_stat_arb_batch(batch_pairs)
+        return jsonify({"status": "success", "data": arb_results})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
