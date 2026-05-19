@@ -23,6 +23,10 @@ def stat_arb():
 def oi_divergence():
     return render_template('oi_divergence.html')
 
+@app.route('/strategy/index-weightage')
+def index_weightage():
+    return render_template('index_weightage.html')
+
 # Global state for caching
 _ingestor = None
 _stock_mappings = None
@@ -151,6 +155,19 @@ def api_oi_divergence_analyze():
         # We perform one deep analysis of the NIFTY chain
         divergence_results = ingestor.analyze_nifty_oi_chain()
         return jsonify({"status": "success", "data": divergence_results})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/index-weightage/analyze')
+def api_index_weightage_analyze():
+    try:
+        ingestor, mappings = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+             return jsonify({"status": "error", "message": "Failed to authenticate."}), 401
+
+        results = ingestor.analyze_index_weightage(mappings)
+        return jsonify({"status": "success", "data": results})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

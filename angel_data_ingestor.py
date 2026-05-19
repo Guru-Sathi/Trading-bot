@@ -585,6 +585,143 @@ class AngelDataIngestor:
              "chain": chain_list_result
         }
 
+    def get_index_heavyweights(self, mappings):
+        """Returns the token mapping for NIFTY 50 and NIFTY BANK heavyweights."""
+        # Approximate current weights for major indices
+        nifty_50_weights = {
+            "HDFCBANK": 11.5,
+            "RELIANCE": 9.5,
+            "ICICIBANK": 8.0,
+            "INFY": 6.0,
+            "LT": 4.5,
+            "TCS": 4.0,
+            "ITC": 4.0,
+            "AXISBANK": 3.0,
+            "SBIN": 3.0,
+            "BHARTIARTL": 2.5
+        }
+
+        nifty_bank_weights = {
+            "HDFCBANK": 29.0,
+            "ICICIBANK": 23.0,
+            "AXISBANK": 11.5,
+            "SBIN": 11.0,
+            "KOTAKBANK": 10.0
+        }
+
+        # We also need to fetch the index tokens themselves
+        # 26000 = NIFTY 50, 26009 = NIFTY BANK
+        index_tokens = {"NIFTY 50": "26000", "NIFTY BANK": "26009"}
+
+        name_to_token = {item['name']: item['spot_token'] for item in mappings}
+
+        result = {
+            "NIFTY 50": {"index_token": index_tokens["NIFTY 50"], "constituents": []},
+            "NIFTY BANK": {"index_token": index_tokens["NIFTY BANK"], "constituents": []}
+        }
+
+        for stock, weight in nifty_50_weights.items():
+            if stock in name_to_token:
+                result["NIFTY 50"]["constituents"].append({
+                    "stock": stock,
+                    "token": name_to_token[stock],
+                    "weight": weight
+                })
+
+        for stock, weight in nifty_bank_weights.items():
+            if stock in name_to_token:
+                result["NIFTY BANK"]["constituents"].append({
+                    "stock": stock,
+                    "token": name_to_token[stock],
+                    "weight": weight
+                })
+
+        return result
+
+    def analyze_index_weightage(self, mappings):
+        """Fetches LTPs for indices and heavyweights to calculate divergence."""
+        heavyweights_data = self.get_index_heavyweights(mappings)
+
+        all_tokens_to_fetch = set()
+
+        # Add index tokens
+        all_tokens_to_fetch.add(heavyweights_data["NIFTY 50"]["index_token"])
+        all_tokens_to_fetch.add(heavyweights_data["NIFTY BANK"]["index_token"])
+
+        # Add constituent tokens
+        for index_name, data in heavyweights_data.items():
+            for c in data["constituents"]:
+                all_tokens_to_fetch.add(c["token"])
+
+        url = f"{self.base_url}rest/secure/angelbroking/market/v1/quote/"
+        payload = {
+            "mode": "FULL",
+            "exchangeTokens": {
+                "NSE": list(all_tokens_to_fetch)
+            }
+        }
+
+        price_dict = {}
+        response = requests.post(url, headers=self.headers, json=payload)
+        if response.status_code == 200:
+            res = response.json()
+            if res.get('status') is True:
+                for item in res.get('data', {}).get('fetched', []):
+                    token = item['symbolToken']
+                    ltp = float(item.get('ltp', 0))
+                    close = float(item.get('close', 0))
+                    pct_change = ((ltp - close) / close * 100) if close > 0 else 0
+                    price_dict[token] = {"ltp": ltp, "pct_change": pct_change}
+
+        # Calculate divergences
+        final_result = {
+            "indices": {},
+            "constituents": []
+        }
+
+        for index_name, data in heavyweights_data.items():
+            idx_token = data["index_token"]
+
+            if idx_token not in price_dict:
+                continue
+
+            actual_move = price_dict[idx_token]["pct_change"]
+
+            implied_move = 0.0
+            total_weight_tracked = 0.0
+
+            for c in data["constituents"]:
+                token = c["token"]
+                if token in price_dict:
+                    weight = c["weight"]
+                    pct = price_dict[token]["pct_change"]
+
+                    # Normalize weight since we aren't tracking 100% of the index
+                    total_weight_tracked += weight
+                    implied_move += (weight * pct)
+
+                    # Prevent duplicates in constituent list if stock belongs to both indices (e.g. HDFC Bank)
+                    # We just add a flag to know which index it belongs to for the table
+                    final_result["constituents"].append({
+                        "index": index_name,
+                        "stock": c["stock"],
+                        "weight": weight,
+                        "ltp": price_dict[token]["ltp"],
+                        "pct_change": pct
+                    })
+
+            if total_weight_tracked > 0:
+                implied_move = implied_move / total_weight_tracked
+                divergence = actual_move - implied_move
+
+                final_result["indices"][index_name] = {
+                    "actual_move": actual_move,
+                    "implied_move": implied_move,
+                    "divergence": divergence
+                }
+
+        return final_result
+
 if __name__ == "__main__":
     import pandas as pd
     
