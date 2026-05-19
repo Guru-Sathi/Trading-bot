@@ -15,21 +15,6 @@ def cash_fut_arb():
 def mean_reversion():
     return render_template('mean_reversion.html')
 
-@app.route('/api/mean-reversion')
-def api_mean_reversion():
-    # Mock data for frontend visualization
-    mock_data = [
-        {"stock": "RELIANCE-EQ", "ltp": 2450.50, "sma": 2550.00, "std_dev": 35.5, "z_score": -2.80},
-        {"stock": "TCS-EQ", "ltp": 3800.00, "sma": 3650.00, "std_dev": 60.0, "z_score": 2.50},
-        {"stock": "HDFCBANK-EQ", "ltp": 1600.00, "sma": 1580.00, "std_dev": 25.0, "z_score": 0.80},
-        {"stock": "INFY-EQ", "ltp": 1420.00, "sma": 1500.00, "std_dev": 20.0, "z_score": -4.00},
-        {"stock": "ITC-EQ", "ltp": 450.00, "sma": 445.00, "std_dev": 10.0, "z_score": 0.50},
-        {"stock": "SBIN-EQ", "ltp": 620.00, "sma": 590.00, "std_dev": 15.0, "z_score": 2.00},
-        {"stock": "ICICIBANK-EQ", "ltp": 980.00, "sma": 1010.00, "std_dev": 12.0, "z_score": -2.50},
-        {"stock": "BHARTIARTL-EQ", "ltp": 1150.00, "sma": 1100.00, "std_dev": 22.0, "z_score": 2.27},
-    ]
-    return jsonify({"status": "success", "data": mock_data})
-
 # Global state for caching
 _ingestor = None
 _stock_mappings = None
@@ -69,6 +54,38 @@ def api_cash_fut_arb_batch(batch_id):
 
         premium_stocks = ingestor.fetch_and_calculate_premiums(batch_mappings)
         return jsonify({"status": "success", "data": premium_stocks})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/mean-reversion/init')
+def api_mean_reversion_init():
+    try:
+        ingestor, mappings = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+            return jsonify({"status": "error", "message": "Failed to authenticate with Angel One API. Please check your .env credentials."}), 401
+
+        import math
+        # Mean reversion takes ~0.5s per stock for historical data.
+        # We process in smaller batches (e.g., 5 stocks per batch) to keep UI responsive.
+        total_batches = math.ceil(len(mappings) / 5.0)
+        return jsonify({"status": "success", "total_batches": total_batches})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/mean-reversion/batch/<int:batch_id>')
+def api_mean_reversion_batch(batch_id):
+    try:
+        ingestor, mappings = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+             return jsonify({"status": "error", "message": "Failed to authenticate."}), 401
+
+        start_idx = batch_id * 5
+        batch_mappings = mappings[start_idx:start_idx+5]
+
+        reversion_stocks = ingestor.analyze_mean_reversion_batch(batch_mappings)
+        return jsonify({"status": "success", "data": reversion_stocks})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

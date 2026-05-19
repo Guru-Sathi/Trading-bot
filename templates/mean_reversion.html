@@ -115,10 +115,16 @@
     <!-- Data Section -->
     <div class="glass-panel rounded-2xl shadow-xl p-1 sm:p-4">
 
-        <!-- Loading State -->
-        <div id="loading-state" class="py-20 flex flex-col items-center justify-center">
-            <div class="loader mb-4"></div>
-            <p class="text-slate-400 animate-pulse">Running statistical analysis...</p>
+        <!-- Loading State & Progress Bar -->
+        <div id="loading-state" class="py-10 flex flex-col items-center justify-center mb-6">
+            <div class="loader mb-4" id="main-loader"></div>
+            <p class="text-slate-400 mb-2" id="loading-text">Connecting to Angel One API...</p>
+
+            <!-- Progress Bar Container -->
+            <div class="w-full max-w-md bg-slate-700 rounded-full h-2.5 mt-2 hidden" id="progress-container">
+                <div class="bg-pink-600 h-2.5 rounded-full transition-all duration-300" id="progress-bar" style="width: 0%"></div>
+            </div>
+            <p class="text-xs text-slate-500 mt-2 hidden" id="progress-text">0 / 0 batches loaded</p>
         </div>
 
         <!-- Error State -->
@@ -182,90 +188,148 @@
              return 'text-slate-300';
         }
 
-        function fetchData() {
+        let oversold = 0;
+        let overbought = 0;
+        let maxDev = 0;
+        let totalProcessed = 0;
+
+        function initDataTable() {
+            if (dataTable) {
+                dataTable.destroy();
+            }
+            $('#table-body').empty();
+
+            dataTable = $('#reversion-table').DataTable({
+                responsive: true,
+                pageLength: 25,
+                order: [[4, 'asc']], // Order by Z-Score asc (most oversold first)
+                language: {
+                    search: "Search Stocks:",
+                    lengthMenu: "Show _MENU_ entries",
+                    emptyTable: "Analyzing historical data for mean reversion..."
+                },
+                columnDefs: [
+                    { type: 'num', targets: [1, 2, 3, 4] }
+                ]
+            });
+        }
+
+        function updateStats(dataBatch) {
+            dataBatch.forEach(item => {
+                if (item.z_score <= -2.0) oversold++;
+                if (item.z_score >= 2.0) overbought++;
+                if (Math.abs(item.z_score) > maxDev) maxDev = Math.abs(item.z_score);
+            });
+            totalProcessed += dataBatch.length;
+
+            $('#stat-oversold').text(oversold);
+            $('#stat-overbought').text(overbought);
+            $('#stat-max-dev').text(maxDev.toFixed(2));
+        }
+
+        function appendDataToTable(dataBatch) {
+            if (dataBatch.length === 0) return;
+
+            const rowsToAdd = dataBatch.map(item => {
+                const zScoreStr = (item.z_score > 0 ? '+' : '') + item.z_score.toFixed(2);
+                return [
+                    `<span class="font-medium text-white">${item.stock}</span>`,
+                    `₹${formatCurrency(item.ltp)}`,
+                    `₹${formatCurrency(item.sma)}`,
+                    item.std_dev.toFixed(2),
+                    `<span class="${getZScoreColor(item.z_score)}">${zScoreStr}</span>`,
+                    getSignalBadge(item.z_score)
+                ];
+            });
+
+            dataTable.rows.add(rowsToAdd).draw(false);
+        }
+
+        async function fetchBatchesSequentially(totalBatches) {
+            $('#progress-container').removeClass('hidden');
+            $('#progress-text').removeClass('hidden');
+
+            // Show table and stats immediately
+            $('#table-container').removeClass('hidden').fadeIn();
+            $('#stats-container').removeClass('hidden').fadeIn();
+            $('#main-loader').addClass('w-8 h-8 border-2').removeClass('w-10 h-10 border-4');
+
+            for (let i = 0; i < totalBatches; i++) {
+                $('#loading-text').text(`Fetching historical candles (Batch ${i + 1}/${totalBatches})...`);
+
+                try {
+                    const response = await $.ajax({
+                        url: `/api/mean-reversion/batch/${i}`,
+                        method: 'GET'
+                    });
+
+                    if (response.status === 'success' && response.data.length > 0) {
+                        updateStats(response.data);
+                        appendDataToTable(response.data);
+                    }
+                } catch (error) {
+                    console.error(`Failed to fetch batch ${i}`, error);
+                }
+
+                // Update progress
+                const pct = Math.round(((i + 1) / totalBatches) * 100);
+                $('#progress-bar').css('width', `${pct}%`);
+                $('#progress-text').text(`${i + 1} / ${totalBatches} batches loaded`);
+            }
+
+            // Finished
+            $('#loading-state').slideUp();
+            $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
+
+            if (totalProcessed === 0) {
+                 dataTable.clear().draw();
+                 $('#reversion-table .dataTables_empty').text("Scan complete. No significant deviations found.");
+            }
+        }
+
+        function startStreamingData() {
+            // Reset UI and State
             $('#loading-state').show();
+            $('#main-loader').removeClass('hidden w-8 h-8 border-2').addClass('w-10 h-10 border-4');
             $('#error-state').hide();
             $('#table-container').hide();
             $('#stats-container').hide();
+            $('#progress-container').addClass('hidden');
+            $('#progress-text').addClass('hidden');
+            $('#progress-bar').css('width', '0%');
             $('#refresh-btn').prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
+            $('#loading-text').text('Authenticating & Downloading Scrip Master...');
 
+            oversold = 0;
+            overbought = 0;
+            maxDev = 0;
+            totalProcessed = 0;
+
+            initDataTable();
+
+            // 1. Initialize
             $.ajax({
-                url: '/api/mean-reversion',
+                url: '/api/mean-reversion/init',
                 method: 'GET',
                 success: function(response) {
-                    if(response.status === 'success') {
-                        const data = response.data;
-
-                        if (dataTable) {
-                            dataTable.destroy();
-                        }
-
-                        const tbody = $('#table-body');
-                        tbody.empty();
-
-                        let oversold = 0;
-                        let overbought = 0;
-                        let maxDev = 0;
-
-                        if (data.length === 0) {
-                             tbody.append('<tr><td colspan="6" class="text-center py-4">No data available right now.</td></tr>');
+                    if (response.status === 'success') {
+                        const totalBatches = response.total_batches;
+                        if (totalBatches > 0) {
+                             fetchBatchesSequentially(totalBatches);
                         } else {
-                            data.forEach(item => {
-                                // Stats calc
-                                if (item.z_score <= -2.0) oversold++;
-                                if (item.z_score >= 2.0) overbought++;
-                                if (Math.abs(item.z_score) > maxDev) maxDev = Math.abs(item.z_score);
-
-                                const tr = `
-                                    <tr class="border-b border-slate-700/50 hover:bg-slate-800/50 transition-colors">
-                                        <td class="px-4 py-3 font-medium text-white">${item.stock}</td>
-                                        <td class="px-4 py-3">₹${formatCurrency(item.ltp)}</td>
-                                        <td class="px-4 py-3">₹${formatCurrency(item.sma)}</td>
-                                        <td class="px-4 py-3">${item.std_dev.toFixed(2)}</td>
-                                        <td class="px-4 py-3 ${getZScoreColor(item.z_score)}">${item.z_score > 0 ? '+' : ''}${item.z_score.toFixed(2)}</td>
-                                        <td class="px-4 py-3">${getSignalBadge(item.z_score)}</td>
-                                    </tr>
-                                `;
-                                tbody.append(tr);
-                            });
-
-                            // Initialize DataTable
-                            dataTable = $('#reversion-table').DataTable({
-                                responsive: true,
-                                pageLength: 25,
-                                order: [[4, 'asc']], // Order by Z-Score asc (most oversold first)
-                                language: {
-                                    search: "Search Stocks:",
-                                    lengthMenu: "Show _MENU_ entries"
-                                },
-                                columnDefs: [
-                                    { type: 'num', targets: [1, 2, 3, 4] }
-                                ]
-                            });
+                             $('#loading-state').hide();
+                             $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
                         }
-
-                        // Update Stats
-                        $('#stat-oversold').text(oversold);
-                        $('#stat-overbought').text(overbought);
-                        $('#stat-max-dev').text(maxDev.toFixed(2));
-
-                        $('#loading-state').hide();
-                        $('#stats-container').removeClass('hidden').show();
-                        $('#table-container').removeClass('hidden').fadeIn();
-
                     } else {
                         showError(response.message);
                     }
                 },
                 error: function(xhr) {
-                    let msg = "An unknown error occurred.";
+                    let msg = "An unknown error occurred during initialization.";
                     if(xhr.responseJSON && xhr.responseJSON.message) {
                         msg = xhr.responseJSON.message;
                     }
                     showError(msg);
-                },
-                complete: function() {
-                    $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
                 }
             });
         }
@@ -274,14 +338,15 @@
             $('#loading-state').hide();
             $('#error-message').text(msg);
             $('#error-state').removeClass('hidden').show();
+            $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
         }
 
         // Initial fetch
-        fetchData();
+        startStreamingData();
 
         // Refresh click
         $('#refresh-btn').on('click', function() {
-            fetchData();
+            startStreamingData();
         });
     });
 </script>

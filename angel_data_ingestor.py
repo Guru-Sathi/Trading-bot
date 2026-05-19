@@ -5,6 +5,8 @@ import pandas as pd
 import pyotp
 # from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import time
+from datetime import datetime, timedelta
 
 class AngelDataIngestor:
     def __init__(self):
@@ -171,6 +173,84 @@ class AngelDataIngestor:
                             })
         else:
             print(f"Batch failed. Status: {response.status_code}")
+
+        return all_results
+
+    def get_historical_data(self, token, exchange='NSE', interval='ONE_DAY', days_back=30):
+        url = f"{self.base_url}rest/secure/angelbroking/historical/v1/getCandleData"
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days_back)
+
+        payload = {
+            "exchange": exchange,
+            "symboltoken": token,
+            "interval": interval,
+            "fromdate": start_date.strftime("%Y-%m-%d %H:%M"),
+            "todate": end_date.strftime("%Y-%m-%d %H:%M")
+        }
+
+        response = requests.post(url, headers=self.headers, json=payload)
+        time.sleep(0.5) # rate limit
+
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('status') is True and result.get('data'):
+                df = pd.DataFrame(result['data'], columns=['datetime', 'open', 'high', 'low', 'close', 'volume'])
+                df['close'] = df['close'].astype(float)
+                return df
+        return None
+
+    def analyze_mean_reversion_batch(self, mappings):
+        """Analyzes a batch of stocks for Mean Reversion (Z-Score)."""
+        all_results = []
+
+        # 1. Fetch real-time LTPs for the batch
+        url = f"{self.base_url}rest/secure/angelbroking/market/v1/quote/"
+        nse_tokens = [pair['spot_token'] for pair in mappings]
+
+        payload = {
+            "mode": "LTP",
+            "exchangeTokens": {
+                "NSE": nse_tokens
+            }
+        }
+
+        ltp_dict = {}
+        response = requests.post(url, headers=self.headers, json=payload)
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("status") is True:
+                fetched_data = result.get("data", {}).get("fetched", [])
+                ltp_dict = {item['symbolToken']: item['ltp'] for item in fetched_data}
+
+        # 2. Fetch historical data & calculate stats for each stock
+        for pair in mappings:
+            token = pair['spot_token']
+            stock_name = pair['name']
+
+            ltp = ltp_dict.get(token)
+            if not ltp:
+                continue
+
+            df = self.get_historical_data(token, days_back=40) # Fetch enough days for a reliable 20-day SMA
+            if df is not None and len(df) >= 20:
+                # Calculate 20-Day SMA and Standard Deviation
+                sma20 = df['close'].rolling(window=20).mean().iloc[-1]
+                std_dev = df['close'].rolling(window=20).std().iloc[-1]
+
+                if pd.notna(sma20) and pd.notna(std_dev) and std_dev > 0:
+                    z_score = (ltp - sma20) / std_dev
+
+                    # Only include stocks that have deviated significantly (Optional filter)
+                    if abs(z_score) >= 1.0: # Filter out "boring" stocks to save frontend bandwidth
+                        all_results.append({
+                            "stock": stock_name + "-EQ",
+                            "ltp": float(ltp),
+                            "sma": float(sma20),
+                            "std_dev": float(std_dev),
+                            "z_score": float(z_score)
+                        })
 
         return all_results
 
