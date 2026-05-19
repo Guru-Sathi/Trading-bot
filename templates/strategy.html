@@ -115,10 +115,16 @@
     <!-- Data Section -->
     <div class="glass-panel rounded-2xl shadow-xl p-1 sm:p-4">
 
-        <!-- Loading State -->
-        <div id="loading-state" class="py-20 flex flex-col items-center justify-center">
-            <div class="loader mb-4"></div>
-            <p class="text-slate-400 animate-pulse">Fetching live data from Angel One API...</p>
+        <!-- Loading State & Progress Bar -->
+        <div id="loading-state" class="py-10 flex flex-col items-center justify-center mb-6">
+            <div class="loader mb-4" id="main-loader"></div>
+            <p class="text-slate-400 mb-2" id="loading-text">Connecting to Angel One API...</p>
+
+            <!-- Progress Bar Container -->
+            <div class="w-full max-w-md bg-slate-700 rounded-full h-2.5 mt-2 hidden" id="progress-container">
+                <div class="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" id="progress-bar" style="width: 0%"></div>
+            </div>
+            <p class="text-xs text-slate-500 mt-2 hidden" id="progress-text">0 / 0 batches loaded</p>
         </div>
 
         <!-- Error State -->
@@ -165,89 +171,148 @@
             return parseFloat(val).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
         }
 
-        function fetchData() {
+        let globalMaxProfit = 0;
+        let globalMaxPremium = 0;
+        let totalOpportunities = 0;
+        let allDataRows = [];
+
+        function initDataTable() {
+            if (dataTable) {
+                dataTable.destroy();
+            }
+            $('#table-body').empty();
+
+            dataTable = $('#arb-table').DataTable({
+                responsive: true,
+                pageLength: 25,
+                order: [[5, 'desc']], // Order by Gross Profit desc by default
+                language: {
+                    search: "Search Stocks:",
+                    lengthMenu: "Show _MENU_ entries",
+                    emptyTable: "Scanning market for opportunities..."
+                },
+                columnDefs: [
+                    { type: 'num', targets: [1, 2, 3, 4, 5, 6] }
+                ]
+            });
+        }
+
+        function updateStats(dataBatch) {
+            dataBatch.forEach(item => {
+                if(item['Gross_Profit(₹)'] > globalMaxProfit) globalMaxProfit = item['Gross_Profit(₹)'];
+                if(item['Premium_%'] > globalMaxPremium) globalMaxPremium = item['Premium_%'];
+            });
+            totalOpportunities += dataBatch.length;
+
+            $('#stat-total-opps').text(totalOpportunities);
+            $('#stat-high-profit').text('₹' + formatCurrency(globalMaxProfit));
+            $('#stat-high-prem').text(globalMaxPremium + '%');
+        }
+
+        function appendDataToTable(dataBatch) {
+            if (dataBatch.length === 0) return;
+
+            const rowsToAdd = dataBatch.map(item => {
+                return [
+                    `<span class="font-medium text-white">${item.Stock}</span>`,
+                    formatCurrency(item.Spot),
+                    formatCurrency(item.Future),
+                    `<span class="text-cyan-400 font-semibold">${item['Premium_%']}%</span>`,
+                    item.Lot_Size.toLocaleString('en-IN'),
+                    `<span class="font-bold text-emerald-400">₹${formatCurrency(item['Gross_Profit(₹)'])}</span>`,
+                    `₹${formatCurrency(item['Spot_Capital(₹)'])}`
+                ];
+            });
+
+            dataTable.rows.add(rowsToAdd).draw(false);
+        }
+
+        async function fetchBatchesSequentially(totalBatches) {
+            $('#progress-container').removeClass('hidden');
+            $('#progress-text').removeClass('hidden');
+
+            // Show table and stats immediately (they will be empty initially)
+            $('#table-container').removeClass('hidden').fadeIn();
+            $('#stats-container').removeClass('hidden').fadeIn();
+            $('#main-loader').addClass('w-8 h-8 border-2').removeClass('w-10 h-10 border-4');
+
+            for (let i = 0; i < totalBatches; i++) {
+                $('#loading-text').text(`Fetching real-time prices (Batch ${i + 1}/${totalBatches})...`);
+
+                try {
+                    const response = await $.ajax({
+                        url: `/api/cash-fut-arb/batch/${i}`,
+                        method: 'GET'
+                    });
+
+                    if (response.status === 'success' && response.data.length > 0) {
+                        updateStats(response.data);
+                        appendDataToTable(response.data);
+                    }
+                } catch (error) {
+                    console.error(`Failed to fetch batch ${i}`, error);
+                    // We continue fetching next batches even if one fails
+                }
+
+                // Update progress
+                const pct = Math.round(((i + 1) / totalBatches) * 100);
+                $('#progress-bar').css('width', `${pct}%`);
+                $('#progress-text').text(`${i + 1} / ${totalBatches} batches loaded`);
+            }
+
+            // Finished
+            $('#loading-state').slideUp();
+            $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
+
+            if (totalOpportunities === 0) {
+                 dataTable.clear().draw();
+                 $('#arb-table .dataTables_empty').text("Scan complete. No arbitrage opportunities found right now.");
+            }
+        }
+
+        function startStreamingData() {
+            // Reset UI and State
             $('#loading-state').show();
+            $('#main-loader').removeClass('hidden w-8 h-8 border-2').addClass('w-10 h-10 border-4');
             $('#error-state').hide();
             $('#table-container').hide();
             $('#stats-container').hide();
+            $('#progress-container').addClass('hidden');
+            $('#progress-text').addClass('hidden');
+            $('#progress-bar').css('width', '0%');
             $('#refresh-btn').prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
+            $('#loading-text').text('Authenticating & Downloading Scrip Master...');
 
+            globalMaxProfit = 0;
+            globalMaxPremium = 0;
+            totalOpportunities = 0;
+
+            initDataTable();
+
+            // 1. Initialize
             $.ajax({
-                url: '/api/cash-fut-arb',
+                url: '/api/cash-fut-arb/init',
                 method: 'GET',
                 success: function(response) {
-                    if(response.status === 'success') {
-                        const data = response.data;
-
-                        if (dataTable) {
-                            dataTable.destroy();
-                        }
-
-                        const tbody = $('#table-body');
-                        tbody.empty();
-
-                        let maxProfit = 0;
-                        let maxPremium = 0;
-
-                        if (data.length === 0) {
-                             tbody.append('<tr><td colspan="7" class="text-center py-4">No opportunities found right now.</td></tr>');
+                    if (response.status === 'success') {
+                        const totalBatches = response.total_batches;
+                        if (totalBatches > 0) {
+                             fetchBatchesSequentially(totalBatches);
                         } else {
-                            data.forEach(item => {
-                                // Stats calc
-                                if(item['Gross_Profit(₹)'] > maxProfit) maxProfit = item['Gross_Profit(₹)'];
-                                if(item['Premium_%'] > maxPremium) maxPremium = item['Premium_%'];
-
-                                const tr = `
-                                    <tr class="border-b border-slate-700/50 hover:bg-slate-800/50 transition-colors">
-                                        <td class="px-4 py-3 font-medium text-white">${item.Stock}</td>
-                                        <td class="px-4 py-3">${formatCurrency(item.Spot)}</td>
-                                        <td class="px-4 py-3">${formatCurrency(item.Future)}</td>
-                                        <td class="px-4 py-3 text-cyan-400 font-semibold">${item['Premium_%']}%</td>
-                                        <td class="px-4 py-3">${item.Lot_Size.toLocaleString('en-IN')}</td>
-                                        <td class="px-4 py-3 font-bold text-emerald-400">₹${formatCurrency(item['Gross_Profit(₹)'])}</td>
-                                        <td class="px-4 py-3">₹${formatCurrency(item['Spot_Capital(₹)'])}</td>
-                                    </tr>
-                                `;
-                                tbody.append(tr);
-                            });
-
-                            // Initialize DataTable
-                            dataTable = $('#arb-table').DataTable({
-                                responsive: true,
-                                pageLength: 25,
-                                order: [[5, 'desc']], // Order by Gross Profit desc by default
-                                language: {
-                                    search: "Search Stocks:",
-                                    lengthMenu: "Show _MENU_ entries"
-                                },
-                                columnDefs: [
-                                    { type: 'num', targets: [1, 2, 3, 4, 5, 6] }
-                                ]
-                            });
+                             // Unlikely edge case where mappings is empty
+                             $('#loading-state').hide();
+                             $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
                         }
-
-                        // Update Stats
-                        $('#stat-total-opps').text(data.length);
-                        $('#stat-high-profit').text('₹' + formatCurrency(maxProfit));
-                        $('#stat-high-prem').text(maxPremium + '%');
-
-                        $('#loading-state').hide();
-                        $('#stats-container').removeClass('hidden').show();
-                        $('#table-container').removeClass('hidden').fadeIn();
-
                     } else {
                         showError(response.message);
                     }
                 },
                 error: function(xhr) {
-                    let msg = "An unknown error occurred.";
+                    let msg = "An unknown error occurred during initialization.";
                     if(xhr.responseJSON && xhr.responseJSON.message) {
                         msg = xhr.responseJSON.message;
                     }
                     showError(msg);
-                },
-                complete: function() {
-                    $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
                 }
             });
         }
@@ -256,14 +321,15 @@
             $('#loading-state').hide();
             $('#error-message').text(msg);
             $('#error-state').removeClass('hidden').show();
+            $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
         }
 
         // Initial fetch
-        fetchData();
+        startStreamingData();
 
         // Refresh click
         $('#refresh-btn').on('click', function() {
-            fetchData();
+            startStreamingData();
         });
     });
 </script>

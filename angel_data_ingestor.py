@@ -121,60 +121,57 @@ class AngelDataIngestor:
         return mapping
 
     def fetch_and_calculate_premiums(self, mappings):
-        """Fetches LTPs, calculates the premium %, and Absolute Profit per Lot."""
+        """Fetches LTPs, calculates the premium %, and Absolute Profit per Lot. Expects a batch of max 25 mappings."""
         url = f"{self.base_url}rest/secure/angelbroking/market/v1/quote/"
         all_results = []
         
-        for i in range(0, len(mappings), 25):
-            batch = mappings[i:i + 25]
-            
-            nse_tokens = [pair['spot_token'] for pair in batch]
-            nfo_tokens = [pair['fut_token'] for pair in batch]
-            
-            payload = {
-                "mode": "LTP",
-                "exchangeTokens": {
-                    "NSE": nse_tokens,
-                    "NFO": nfo_tokens
-                }
+        nse_tokens = [pair['spot_token'] for pair in mappings]
+        nfo_tokens = [pair['fut_token'] for pair in mappings]
+
+        payload = {
+            "mode": "LTP",
+            "exchangeTokens": {
+                "NSE": nse_tokens,
+                "NFO": nfo_tokens
             }
-            
-            response = requests.post(url, headers=self.headers, json=payload)
-            
-            if response.status_code == 200:
-                result = response.json()
-                if result.get("status") is True:
-                    fetched_data = result.get("data", {}).get("fetched", [])
-                    ltp_dict = {item['symbolToken']: item['ltp'] for item in fetched_data}
+        }
+
+        response = requests.post(url, headers=self.headers, json=payload)
+
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("status") is True:
+                fetched_data = result.get("data", {}).get("fetched", [])
+                ltp_dict = {item['symbolToken']: item['ltp'] for item in fetched_data}
+
+                for pair in mappings:
+                    spot_ltp = ltp_dict.get(pair['spot_token'])
+                    fut_ltp = ltp_dict.get(pair['fut_token'])
                     
-                    for pair in batch:
-                        spot_ltp = ltp_dict.get(pair['spot_token'])
-                        fut_ltp = ltp_dict.get(pair['fut_token'])
+                    if spot_ltp and fut_ltp:
+                        diff = fut_ltp - spot_ltp
                         
-                        if spot_ltp and fut_ltp:
-                            diff = fut_ltp - spot_ltp
+                        # Filter: Only keep if Futures price is HIGHER than Spot
+                        if diff > 0:
+                            lotsize = pair['lotsize']
+                            pct_diff = (diff / spot_ltp) * 100
                             
-                            # Filter: Only keep if Futures price is HIGHER than Spot
-                            if diff > 0:
-                                lotsize = pair['lotsize']
-                                pct_diff = (diff / spot_ltp) * 100
-                                
-                                # Absolute calculations
-                                gross_profit_per_lot = diff * lotsize
-                                spot_capital_required = spot_ltp * lotsize
-                                
-                                all_results.append({
-                                    "Stock": pair['name'],
-                                    "Spot": spot_ltp,
-                                    "Future": fut_ltp,
-                                    "Premium_%": round(pct_diff, 2),
-                                    "Lot_Size": lotsize,
-                                    "Gross_Profit(₹)": round(gross_profit_per_lot, 2),
-                                    "Spot_Capital(₹)": round(spot_capital_required, 2)
-                                })
-            else:
-                print(f"Batch failed. Status: {response.status_code}")
-                
+                            # Absolute calculations
+                            gross_profit_per_lot = diff * lotsize
+                            spot_capital_required = spot_ltp * lotsize
+
+                            all_results.append({
+                                "Stock": pair['name'],
+                                "Spot": spot_ltp,
+                                "Future": fut_ltp,
+                                "Premium_%": round(pct_diff, 2),
+                                "Lot_Size": lotsize,
+                                "Gross_Profit(₹)": round(gross_profit_per_lot, 2),
+                                "Spot_Capital(₹)": round(spot_capital_required, 2)
+                            })
+        else:
+            print(f"Batch failed. Status: {response.status_code}")
+
         return all_results
 
 if __name__ == "__main__":

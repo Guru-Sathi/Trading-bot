@@ -30,22 +30,44 @@ def api_mean_reversion():
     ]
     return jsonify({"status": "success", "data": mock_data})
 
-@app.route('/api/cash-fut-arb')
-def api_cash_fut_arb():
-    try:
-        ingestor = AngelDataIngestor()
+# Global state for caching
+_ingestor = None
+_stock_mappings = None
 
-        # If not authenticated (e.g. no .env), we should return a clear error
+def get_ingestor_and_mappings():
+    global _ingestor, _stock_mappings
+    if _ingestor is None:
+        _ingestor = AngelDataIngestor()
+    if _stock_mappings is None and _ingestor.auth_token:
+        _stock_mappings = _ingestor.get_spot_fut_mapping()
+    return _ingestor, _stock_mappings
+
+@app.route('/api/cash-fut-arb/init')
+def api_cash_fut_arb_init():
+    try:
+        ingestor, mappings = get_ingestor_and_mappings()
+
         if not ingestor.auth_token:
             return jsonify({"status": "error", "message": "Failed to authenticate with Angel One API. Please check your .env credentials."}), 401
 
-        stock_mappings = ingestor.get_spot_fut_mapping()
-        premium_stocks = ingestor.fetch_and_calculate_premiums(stock_mappings)
+        import math
+        total_batches = math.ceil(len(mappings) / 25.0)
+        return jsonify({"status": "success", "total_batches": total_batches})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-        # Sort by Gross_Profit(₹) descending
-        if premium_stocks:
-            premium_stocks = sorted(premium_stocks, key=lambda x: x.get('Gross_Profit(₹)', 0), reverse=True)
+@app.route('/api/cash-fut-arb/batch/<int:batch_id>')
+def api_cash_fut_arb_batch(batch_id):
+    try:
+        ingestor, mappings = get_ingestor_and_mappings()
 
+        if not ingestor.auth_token:
+             return jsonify({"status": "error", "message": "Failed to authenticate."}), 401
+
+        start_idx = batch_id * 25
+        batch_mappings = mappings[start_idx:start_idx+25]
+
+        premium_stocks = ingestor.fetch_and_calculate_premiums(batch_mappings)
         return jsonify({"status": "success", "data": premium_stocks})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
