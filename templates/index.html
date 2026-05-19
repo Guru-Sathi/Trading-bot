@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Strategies Dashboard{% endblock %}
+
+{% block content %}
+<div class="px-4 py-8 sm:px-0">
+    <!-- Header -->
+    <div class="mb-10 text-center sm:text-left">
+        <h1 class="text-4xl font-extrabold tracking-tight text-white mb-2">
+            Active Strategies
+        </h1>
+        <p class="text-lg text-slate-400 max-w-2xl">
+            Monitor and execute your automated trading strategies across different market segments.
+        </p>
+    </div>
+
+    <!-- Strategies Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        <!-- Cash-Fut Arb Card -->
+        <a href="/strategy/cash-fut-arb" class="group block h-full">
+            <div class="glass-panel rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(99,102,241,0.2)] hover:border-indigo-500/50 relative">
+
+                <!-- Glowing accent -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-indigo-500 to-cyan-500"></div>
+
+                <div class="p-6 flex-grow flex flex-col">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="p-3 bg-indigo-500/10 rounded-xl">
+                            <svg class="h-8 w-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                        </div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            Active
+                        </span>
+                    </div>
+
+                    <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
+                        Cash-Fut Arbitrage
+                    </h3>
+
+                    <p class="text-slate-400 text-sm mb-6 flex-grow">
+                        Scans the NSE and NFO segments to find risk-free arbitrage opportunities where Near-Month Futures are trading at a premium to the Spot (Cash) price.
+                    </p>
+
+                    <!-- Stats summary -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto border-t border-slate-700/50 pt-4">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Market</p>
+                            <p class="text-sm font-semibold text-slate-200">NSE / NFO</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Risk Profile</p>
+                            <p class="text-sm font-semibold text-emerald-400">Low</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Placeholder for future strategies -->
+        <div class="glass-panel rounded-2xl p-6 border-dashed border-2 border-slate-700 flex flex-col items-center justify-center text-center h-full min-h-[300px] opacity-50">
+            <div class="p-3 bg-slate-800 rounded-xl mb-3">
+                <svg class="h-8 w-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-slate-400">New Strategy</h3>
+            <p class="text-sm text-slate-500 mt-1">Coming soon...</p>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

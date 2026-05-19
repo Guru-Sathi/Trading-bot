@@ -33,9 +33,15 @@ class AngelDataIngestor:
             "X-PrivateKey": self.api_key
         }
 
-        self._login()
+        try:
+            self._login()
+        except Exception as e:
+            print(f"Warning: Login failed during initialization. Credentials might be missing. {e}")
 
     def _login(self):
+        if not self.totp_secret:
+            raise ValueError("TOTP_SECRET environment variable is not set.")
+
         totp = pyotp.TOTP(self.totp_secret).now()
 
         payload = {
