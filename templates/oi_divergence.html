@@ -97,34 +97,48 @@
     </div>
 
     <!-- Stats Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 hidden" id="stats-container">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 hidden" id="stats-container">
         <div class="glass-panel p-5 rounded-xl border-l-4 border-l-blue-500">
-            <p class="text-sm font-medium text-slate-400">Total Analyzed</p>
-            <p class="mt-2 text-3xl font-bold text-white" id="stat-analyzed">-</p>
+            <div class="flex justify-between items-start">
+                <p class="text-sm font-medium text-slate-400">NIFTY 50 Spot</p>
+                <span id="stat-spot-pct" class="text-xs font-bold px-2 py-1 rounded bg-slate-800">-</span>
+            </div>
+            <p class="mt-2 text-3xl font-bold text-white" id="stat-spot">-</p>
         </div>
-        <div class="glass-panel p-5 rounded-xl border-l-4 border-l-emerald-500">
-            <p class="text-sm font-medium text-slate-400">Bullish Divergences</p>
-            <p class="mt-2 text-3xl font-bold text-emerald-400" id="stat-bullish">-</p>
+        <div class="glass-panel p-5 rounded-xl border-l-4 border-l-amber-500">
+            <p class="text-sm font-medium text-slate-400">Overall PCR</p>
+            <div class="flex items-baseline gap-3 mt-2">
+                <p class="text-3xl font-bold text-amber-400" id="stat-pcr">-</p>
+                <span id="stat-sentiment" class="text-sm font-semibold px-2 py-0.5 rounded border border-slate-600 text-slate-300">-</span>
+            </div>
         </div>
         <div class="glass-panel p-5 rounded-xl border-l-4 border-l-rose-500">
-            <p class="text-sm font-medium text-slate-400">Bearish Divergences</p>
-            <p class="mt-2 text-3xl font-bold text-rose-400" id="stat-bearish">-</p>
+            <p class="text-sm font-medium text-slate-400">Resistance (Max Call OI)</p>
+            <p class="mt-2 text-3xl font-bold text-rose-400" id="stat-res">-</p>
+        </div>
+        <div class="glass-panel p-5 rounded-xl border-l-4 border-l-emerald-500">
+            <p class="text-sm font-medium text-slate-400">Support (Max Put OI)</p>
+            <p class="mt-2 text-3xl font-bold text-emerald-400" id="stat-sup">-</p>
+        </div>
+        <div class="col-span-2 md:col-span-4 glass-panel p-4 rounded-xl flex items-center justify-between border-t-2 border-t-purple-500">
+             <div>
+                 <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Estimated Max Pain Strike</p>
+                 <p class="text-2xl font-bold text-purple-400" id="stat-max-pain">-</p>
+             </div>
+             <div class="text-right">
+                 <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Expiry</p>
+                 <p class="text-lg font-semibold text-white" id="stat-expiry">-</p>
+             </div>
         </div>
     </div>
 
     <!-- Data Section -->
     <div class="glass-panel rounded-2xl shadow-xl p-1 sm:p-4">
 
-        <!-- Loading State & Progress Bar -->
-        <div id="loading-state" class="py-10 flex flex-col items-center justify-center mb-6">
+        <!-- Loading State -->
+        <div id="loading-state" class="py-16 flex flex-col items-center justify-center mb-6">
             <div class="loader mb-4" id="main-loader"></div>
-            <p class="text-slate-400 mb-2" id="loading-text">Connecting to Angel One API...</p>
-
-            <!-- Progress Bar Container -->
-            <div class="w-full max-w-md bg-slate-700 rounded-full h-2.5 mt-2 hidden" id="progress-container">
-                <div class="bg-amber-500 h-2.5 rounded-full transition-all duration-300" id="progress-bar" style="width: 0%"></div>
-            </div>
-            <p class="text-xs text-slate-500 mt-2 hidden" id="progress-text">0 / 0 batches loaded</p>
+            <p class="text-slate-400 mb-2" id="loading-text">Deep analyzing NIFTY Options Chain...</p>
         </div>
 
         <!-- Error State -->
@@ -140,16 +154,15 @@
 
         <!-- Table State -->
         <div id="table-container" class="hidden overflow-x-auto w-full p-2">
-            <table id="oidiv-table" class="w-full text-left text-sm text-slate-300">
+            <table id="oidiv-table" class="w-full text-center text-sm text-slate-300">
                 <thead class="text-xs text-slate-400 uppercase bg-slate-800/50">
                     <tr>
-                        <th class="px-4 py-3 rounded-tl-lg">Underlying</th>
-                        <th class="px-4 py-3">Spot Price</th>
-                        <th class="px-4 py-3">Price % Chg</th>
-                        <th class="px-4 py-3">Call OI</th>
-                        <th class="px-4 py-3">Put OI</th>
-                        <th class="px-4 py-3 text-white">PCR (Put/Call Ratio)</th>
-                        <th class="px-4 py-3 rounded-tr-lg">Divergence Signal</th>
+                        <th class="px-4 py-3 rounded-tl-lg text-rose-300 border-b border-rose-900/50">CALL OI</th>
+                        <th class="px-4 py-3 text-rose-300 border-b border-rose-900/50">CALL LTP</th>
+                        <th class="px-4 py-3 text-white border-b border-slate-700 bg-slate-800/80">STRIKE PRICE</th>
+                        <th class="px-4 py-3 text-emerald-300 border-b border-emerald-900/50">PUT LTP</th>
+                        <th class="px-4 py-3 text-emerald-300 border-b border-emerald-900/50">PUT OI</th>
+                        <th class="px-4 py-3 rounded-tr-lg border-b border-slate-700">Strike PCR</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -162,192 +175,114 @@
 
 <!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script>
     $(document).ready(function() {
-        let dataTable;
 
         function formatCurrency(val) {
             return parseFloat(val).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
         }
 
         function formatNumber(val) {
+             if (val >= 10000000) return (val / 10000000).toFixed(2) + ' Cr';
+             if (val >= 100000) return (val / 100000).toFixed(2) + ' L';
              return parseFloat(val).toLocaleString('en-IN');
         }
 
         function getPCRColor(pcr) {
-             if (pcr > 1.2) return 'text-emerald-400 font-bold'; // High PCR = Bullish support
-             if (pcr < 0.8) return 'text-rose-400 font-bold'; // Low PCR = Bearish resistance
+             if (pcr > 1.2) return 'text-emerald-400 font-bold';
+             if (pcr < 0.8) return 'text-rose-400 font-bold';
              return 'text-slate-300';
         }
 
         function getPctColor(pct) {
-             if (pct > 0) return 'text-emerald-400';
-             if (pct < 0) return 'text-rose-400';
-             return 'text-slate-300';
+             if (pct > 0) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+             if (pct < 0) return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+             return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
         }
 
-        function getSignalBadge(signal) {
-            if (signal === "Bullish Divergence") {
-                // Price down, but PCR high (Puts being written, strong support) -> Expected reversal UP
-                return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Bullish Divergence</span>`;
-            } else if (signal === "Bearish Divergence") {
-                // Price up, but PCR low (Calls being written, strong resistance) -> Expected reversal DOWN
-                return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">Bearish Divergence</span>`;
-            } else {
-                 return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">Neutral</span>';
-            }
-        }
-
-        let totalAnalyzed = 0;
-        let totalBullish = 0;
-        let totalBearish = 0;
-
-        function initDataTable() {
-            if (dataTable) {
-                dataTable.destroy();
-            }
-            $('#table-body').empty();
-
-            dataTable = $('#oidiv-table').DataTable({
-                responsive: true,
-                pageLength: 25,
-                order: [[5, 'desc']], // Order by PCR desc by default
-                language: {
-                    search: "Search Symbols:",
-                    lengthMenu: "Show _MENU_ entries",
-                    emptyTable: "Analyzing Near-Month Options data..."
-                },
-                columnDefs: [
-                    { type: 'num', targets: [1, 2, 3, 4, 5] },
-                    {
-                        targets: [2, 5],
-                        render: function(data, type, row, meta) {
-                            if (type === 'sort') {
-                                return parseFloat(data.replace(/<[^>]*>?/gm, '').replace('%', ''));
-                            }
-                            return data;
-                        }
-                    }
-                ]
-            });
-        }
-
-        function updateStats(dataBatch) {
-            dataBatch.forEach(item => {
-                if (item.signal === "Bullish Divergence") totalBullish++;
-                if (item.signal === "Bearish Divergence") totalBearish++;
-            });
-            totalAnalyzed += dataBatch.length;
-
-            $('#stat-analyzed').text(totalAnalyzed);
-            $('#stat-bullish').text(totalBullish);
-            $('#stat-bearish').text(totalBearish);
-        }
-
-        function appendDataToTable(dataBatch) {
-            if (dataBatch.length === 0) return;
-
-            const rowsToAdd = dataBatch.map(item => {
-                const pctStr = (item.price_pct_change > 0 ? '+' : '') + item.price_pct_change.toFixed(2) + '%';
-                return [
-                    `<span class="font-medium text-white">${item.underlying}</span>`,
-                    `₹${formatCurrency(item.spot_price)}`,
-                    `<span class="${getPctColor(item.price_pct_change)}">${pctStr}</span>`,
-                    formatNumber(item.call_oi),
-                    formatNumber(item.put_oi),
-                    `<span class="${getPCRColor(item.pcr)}">${item.pcr.toFixed(2)}</span>`,
-                    getSignalBadge(item.signal)
-                ];
-            });
-
-            dataTable.rows.add(rowsToAdd).draw(false);
-        }
-
-        async function fetchBatchesSequentially(totalBatches) {
-            $('#progress-container').removeClass('hidden');
-            $('#progress-text').removeClass('hidden');
-
-            // Show table and stats immediately
-            $('#table-container').removeClass('hidden').fadeIn();
-            $('#stats-container').removeClass('hidden').fadeIn();
-            $('#main-loader').addClass('w-8 h-8 border-2').removeClass('w-10 h-10 border-4');
-
-            for (let i = 0; i < totalBatches; i++) {
-                $('#loading-text').text(`Analyzing Options Chain (Batch ${i + 1}/${totalBatches})...`);
-
-                try {
-                    const response = await $.ajax({
-                        url: `/api/oi-divergence/batch/${i}`,
-                        method: 'GET'
-                    });
-
-                    if (response.status === 'success' && response.data.length > 0) {
-                        updateStats(response.data);
-                        appendDataToTable(response.data);
-                    }
-                } catch (error) {
-                    console.error(`Failed to fetch batch ${i}`, error);
-                }
-
-                // Update progress
-                const pct = Math.round(((i + 1) / totalBatches) * 100);
-                $('#progress-bar').css('width', `${pct}%`);
-                $('#progress-text').text(`${i + 1} / ${totalBatches} batches loaded`);
-            }
-
-            // Finished
-            $('#loading-state').slideUp();
-            $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
-
-            if (totalAnalyzed === 0) {
-                 dataTable.clear().draw();
-                 $('#oidiv-table .dataTables_empty').text("Scan complete. No data available.");
-            }
-        }
-
-        function startStreamingData() {
+        function fetchChainData() {
             // Reset UI and State
             $('#loading-state').show();
-            $('#main-loader').removeClass('hidden w-8 h-8 border-2').addClass('w-10 h-10 border-4');
             $('#error-state').hide();
             $('#table-container').hide();
             $('#stats-container').hide();
-            $('#progress-container').addClass('hidden');
-            $('#progress-text').addClass('hidden');
-            $('#progress-bar').css('width', '0%');
             $('#refresh-btn').prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
-            $('#loading-text').text('Authenticating & Downloading Scrip Master...');
 
-            totalAnalyzed = 0;
-            totalBullish = 0;
-            totalBearish = 0;
+            $('#table-body').empty();
 
-            initDataTable();
-
-            // 1. Initialize
             $.ajax({
-                url: '/api/oi-divergence/init',
+                url: '/api/oi-divergence/analyze',
                 method: 'GET',
                 success: function(response) {
                     if (response.status === 'success') {
-                        const totalBatches = response.total_batches;
-                        if (totalBatches > 0) {
-                             fetchBatchesSequentially(totalBatches);
-                        } else {
-                             $('#loading-state').hide();
-                             $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
-                        }
+                        const data = response.data;
+
+                        // 1. Populate Dashboard
+                        $('#stat-spot').text('₹' + formatCurrency(data.spot_price));
+
+                        const pctStr = (data.spot_pct > 0 ? '+' : '') + data.spot_pct.toFixed(2) + '%';
+                        $('#stat-spot-pct').text(pctStr).attr('class', `text-xs font-bold px-2 py-1 border rounded ${getPctColor(data.spot_pct)}`);
+
+                        $('#stat-pcr').text(data.overall_pcr.toFixed(2));
+                        $('#stat-sentiment').text(data.sentiment);
+
+                        // Style sentiment
+                        if(data.sentiment.includes('Bullish')) $('#stat-sentiment').addClass('text-emerald-400 border-emerald-500/50 bg-emerald-500/10').removeClass('text-slate-300 text-rose-400');
+                        else if(data.sentiment.includes('Bearish')) $('#stat-sentiment').addClass('text-rose-400 border-rose-500/50 bg-rose-500/10').removeClass('text-slate-300 text-emerald-400');
+
+                        $('#stat-res').text(formatCurrency(data.resistance));
+                        $('#stat-sup').text(formatCurrency(data.support));
+                        $('#stat-max-pain').text(formatCurrency(data.max_pain));
+                        $('#stat-expiry').text(data.expiry);
+
+                        // 2. Populate Chain
+                        const tbody = $('#table-body');
+                        data.chain.forEach(row => {
+                             let strikeClass = "font-bold text-white bg-slate-800/50";
+                             if (row.is_atm) {
+                                  strikeClass = "font-extrabold text-amber-400 bg-amber-500/10 border-y border-amber-500/30";
+                             }
+
+                             // Calculate relative bar widths for visual effect
+                             const max_ce = data.chain.reduce((max, r) => Math.max(max, r.ce_oi), 0);
+                             const max_pe = data.chain.reduce((max, r) => Math.max(max, r.pe_oi), 0);
+
+                             const ce_pct = max_ce > 0 ? (row.ce_oi / max_ce) * 100 : 0;
+                             const pe_pct = max_pe > 0 ? (row.pe_oi / max_pe) * 100 : 0;
+
+                             const ce_bar = `<div class="absolute right-0 top-0 bottom-0 bg-rose-500/10 z-0" style="width: ${ce_pct}%;"></div>`;
+                             const pe_bar = `<div class="absolute left-0 top-0 bottom-0 bg-emerald-500/10 z-0" style="width: ${pe_pct}%;"></div>`;
+
+                             const tr = `
+                                <tr class="border-b border-slate-700/30 hover:bg-slate-800/30 transition-colors">
+                                    <td class="px-4 py-2 relative text-rose-200">${ce_bar}<span class="relative z-10">${formatNumber(row.ce_oi)}</span></td>
+                                    <td class="px-4 py-2 text-slate-300">₹${formatCurrency(row.ce_ltp)}</td>
+                                    <td class="px-4 py-2 text-lg ${strikeClass}">${formatCurrency(row.strike)}</td>
+                                    <td class="px-4 py-2 text-slate-300">₹${formatCurrency(row.pe_ltp)}</td>
+                                    <td class="px-4 py-2 relative text-emerald-200">${pe_bar}<span class="relative z-10">${formatNumber(row.pe_oi)}</span></td>
+                                    <td class="px-4 py-2"><span class="${getPCRColor(row.strike_pcr)}">${row.strike_pcr.toFixed(2)}</span></td>
+                                </tr>
+                             `;
+                             tbody.append(tr);
+                        });
+
+                        $('#loading-state').hide();
+                        $('#stats-container').removeClass('hidden').show();
+                        $('#table-container').removeClass('hidden').fadeIn();
+
                     } else {
                         showError(response.message);
                     }
                 },
                 error: function(xhr) {
-                    let msg = "An unknown error occurred during initialization.";
+                    let msg = "An unknown error occurred.";
                     if(xhr.responseJSON && xhr.responseJSON.message) {
                         msg = xhr.responseJSON.message;
                     }
                     showError(msg);
+                },
+                complete: function() {
+                    $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
                 }
             });
         }
@@ -356,15 +291,14 @@
             $('#loading-state').hide();
             $('#error-message').text(msg);
             $('#error-state').removeClass('hidden').show();
-            $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
         }
 
         // Initial fetch
-        startStreamingData();
+        fetchChainData();
 
         // Refresh click
         $('#refresh-btn').on('click', function() {
-            startStreamingData();
+            fetchChainData();
         });
     });
 </script>

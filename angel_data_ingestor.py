@@ -363,177 +363,227 @@ class AngelDataIngestor:
 
         return all_results
 
-    def get_options_dict(self):
-        """Parses Scrip Master for Near-Month Options (CE/PE) mapped to Underlying names."""
+    def get_nifty_options_chain(self):
+        """Extracts the entire Near-Month Options Chain for NIFTY 50."""
         data = self.get_scrip_master()
 
-        # Get all Options
-        opt_list = [item for item in data if item['exch_seg'] == 'NFO' and item['instrumenttype'] in ['OPTSTK', 'OPTIDX']]
+        # 1. Filter strictly for NIFTY options
+        opt_list = [item for item in data if item['name'] == 'NIFTY' and item['instrumenttype'] == 'OPTIDX' and item['exch_seg'] == 'NFO']
 
-        # Parse expiry dates properly to sort chronologically
         from datetime import datetime
+
+        # We need to find the nearest valid weekly/monthly expiry
+        now = datetime.now()
+        valid_expiries = []
+
         for opt in opt_list:
             try:
-                # Angel One expiry format e.g. "26OCT2023"
-                opt['parsed_expiry'] = datetime.strptime(opt['expiry'], '%d%b%Y')
-            except ValueError:
-                # Fallback far into the future if parsing fails
-                opt['parsed_expiry'] = datetime(2100, 1, 1)
+                dt = datetime.strptime(opt['expiry'], '%d%b%Y')
+                # Include today as a valid expiry
+                if dt.date() >= now.date():
+                    valid_expiries.append((dt, opt['expiry']))
+            except:
+                pass
 
-        opt_list.sort(key=lambda x: (x['name'], x['parsed_expiry'], float(x['strike']) if float(x['strike']) > 0 else 0))
+        if not valid_expiries:
+            raise Exception("No upcoming NIFTY expirations found.")
 
-        options_dict = {}
-        for opt in opt_list:
-            name = opt['name']
-            strike = float(opt['strike']) / 100.0  # Angel One strikes are multiplied by 100
+        # Find the absolute nearest expiry string
+        valid_expiries.sort(key=lambda x: x[0])
+        nearest_expiry_str = valid_expiries[0][1]
 
-            # Extract CE or PE safely from the end of the symbol
+        # Filter the chain to ONLY this nearest expiry
+        chain_list = [item for item in opt_list if item['expiry'] == nearest_expiry_str]
+
+        # Group by strike
+        strikes_dict = {}
+        for opt in chain_list:
+            strike = float(opt['strike']) / 100.0
             opt_type = opt['symbol'][-2:]
-            if opt_type not in ['CE', 'PE']:
-                 continue
 
-            expiry = opt['expiry']
+            if opt_type not in ['CE', 'PE']: continue
 
-            if name not in options_dict:
-                options_dict[name] = {}
+            if strike not in strikes_dict:
+                strikes_dict[strike] = {}
 
-            # Only keep the nearest expiry (since we sorted, the first we see is nearest, but we need to group by strike)
-            if strike not in options_dict[name]:
-                 options_dict[name][strike] = {}
+            strikes_dict[strike][opt_type] = {
+                'token': opt['token'],
+                'symbol': opt['symbol']
+            }
 
-            if opt_type not in options_dict[name][strike]:
-                 options_dict[name][strike][opt_type] = {
-                      'token': opt['token'],
-                      'symbol': opt['symbol'],
-                      'expiry': expiry
-                 }
-        return options_dict
+        return nearest_expiry_str, strikes_dict
 
-    def analyze_oi_divergence_batch(self, mappings):
-        """Analyzes ATM Options OI against Spot Price changes for Divergence Signals."""
-        all_results = []
-        options_dict = self.get_options_dict()
-
-        # 1. Fetch FULL quote for spot tokens to get LTP and previous Close (for % change)
+    def analyze_nifty_oi_chain(self):
+        """Fetches NIFTY spot, and deeply analyzes +/- 10 strikes around ATM."""
+        # 1. Fetch NIFTY Spot Price
         url = f"{self.base_url}rest/secure/angelbroking/market/v1/quote/"
-        nse_tokens = [pair['spot_token'] for pair in mappings]
 
-        payload = {
+        # 26000 is the standard token for NIFTY 50 Spot in NSE
+        payload_spot = {
             "mode": "FULL",
             "exchangeTokens": {
-                "NSE": nse_tokens
+                "NSE": ["26000"]
             }
         }
 
-        spot_data = {}
-        response = requests.post(url, headers=self.headers, json=payload)
-        if response.status_code == 200:
-            result = response.json()
-            if result.get("status") is True:
-                fetched_data = result.get("data", {}).get("fetched", [])
-                for item in fetched_data:
-                     spot_data[item['symbolToken']] = {
-                         'ltp': float(item.get('ltp', 0)),
-                         'close': float(item.get('close', 0))
-                     }
+        nifty_ltp = 0.0
+        nifty_pct = 0.0
+        response_spot = requests.post(url, headers=self.headers, json=payload_spot)
+        if response_spot.status_code == 200:
+            res = response_spot.json()
+            if res.get('status') is True and res.get('data', {}).get('fetched'):
+                spot_data = res['data']['fetched'][0]
+                nifty_ltp = float(spot_data.get('ltp', 0))
+                close = float(spot_data.get('close', 0))
+                if close > 0:
+                    nifty_pct = ((nifty_ltp - close) / close) * 100
 
-        # 2. Identify ATM strikes and collect their option tokens to fetch OI
-        nfo_tokens_to_fetch = []
-        opt_requests_map = {} # Maps spot token -> { 'ce_token': .., 'pe_token': .. }
+        if nifty_ltp == 0:
+            raise Exception("Could not fetch NIFTY 50 Spot Price.")
 
-        for pair in mappings:
-            spot_token = pair['spot_token']
-            name = pair['name']
+        # 2. Get the Options Chain structure
+        expiry_str, strikes_dict = self.get_nifty_options_chain()
 
-            if spot_token not in spot_data or name not in options_dict:
-                 continue
+        # 3. Find ATM and slice +/- 10 strikes
+        available_strikes = sorted(list(strikes_dict.keys()))
+        atm_strike = min(available_strikes, key=lambda x: abs(x - nifty_ltp))
+        atm_idx = available_strikes.index(atm_strike)
 
-            ltp = spot_data[spot_token]['ltp']
-            close = spot_data[spot_token]['close']
-            if close == 0: continue
+        start_idx = max(0, atm_idx - 10)
+        end_idx = min(len(available_strikes), atm_idx + 11)
 
-            price_pct_change = ((ltp - close) / close) * 100
+        target_strikes = available_strikes[start_idx:end_idx]
 
-            # Find closest strike (ATM)
-            available_strikes = list(options_dict[name].keys())
-            if not available_strikes: continue
+        # 4. Collect tokens to fetch OI and Prices
+        nfo_tokens = []
+        token_to_strike = {} # mapping for easy population later
 
-            atm_strike = min(available_strikes, key=lambda x: abs(x - ltp))
+        for strike in target_strikes:
+            opts = strikes_dict[strike]
+            if 'CE' in opts:
+                ce_token = opts['CE']['token']
+                nfo_tokens.append(ce_token)
+                token_to_strike[ce_token] = ('CE', strike)
+            if 'PE' in opts:
+                pe_token = opts['PE']['token']
+                nfo_tokens.append(pe_token)
+                token_to_strike[pe_token] = ('PE', strike)
 
-            opt_chain = options_dict[name][atm_strike]
-            if 'CE' in opt_chain and 'PE' in opt_chain:
-                 ce_token = opt_chain['CE']['token']
-                 pe_token = opt_chain['PE']['token']
-                 nfo_tokens_to_fetch.extend([ce_token, pe_token])
-                 opt_requests_map[spot_token] = {
-                      'name': name,
-                      'ltp': ltp,
-                      'pct_change': price_pct_change,
-                      'atm_strike': atm_strike,
-                      'ce_token': ce_token,
-                      'pe_token': pe_token
-                 }
-
-        if not nfo_tokens_to_fetch:
-             return all_results
-
-        # 3. Fetch OI for the ATM options
+        # 5. Fetch Options Data
         payload_nfo = {
             "mode": "FULL",
             "exchangeTokens": {
-                "NFO": nfo_tokens_to_fetch
+                "NFO": nfo_tokens
             }
         }
 
-        oi_dict = {}
+        chain_data = {strike: {'CE_OI': 0, 'CE_LTP': 0, 'PE_OI': 0, 'PE_LTP': 0} for strike in target_strikes}
+
         response_nfo = requests.post(url, headers=self.headers, json=payload_nfo)
         if response_nfo.status_code == 200:
-            result = response_nfo.json()
-            if result.get("status") is True:
-                fetched_data = result.get("data", {}).get("fetched", [])
-                for item in fetched_data:
-                     # 'opnInterest' is the field returned by Angel One for OI
-                     oi_dict[item['symbolToken']] = float(item.get('opnInterest', 0))
+             res = response_nfo.json()
+             if res.get('status') is True:
+                 for item in res.get('data', {}).get('fetched', []):
+                     token = item['symbolToken']
+                     if token in token_to_strike:
+                         opt_type, strike = token_to_strike[token]
+                         oi = float(item.get('opnInterest', 0))
+                         ltp = float(item.get('ltp', 0))
 
-        # 4. Calculate PCR and Signals
-        for spot_token, data in opt_requests_map.items():
-             ce_oi = oi_dict.get(data['ce_token'], 0)
-             pe_oi = oi_dict.get(data['pe_token'], 0)
+                         chain_data[strike][f"{opt_type}_OI"] = oi
+                         chain_data[strike][f"{opt_type}_LTP"] = ltp
 
-             # Avoid division by zero
-             if ce_oi == 0 and pe_oi == 0: continue
+        # 6. Comprehensive Analysis
+        total_ce_oi = 0
+        total_pe_oi = 0
+        max_ce_oi = 0
+        max_pe_oi = 0
+        resistance_strike = 0
+        support_strike = 0
 
-             # PCR = Put OI / Call OI
-             pcr = pe_oi / ce_oi if ce_oi > 0 else float('inf')
-             if pcr == float('inf'): continue # ignore extremes for UI clarity
+        max_pain_oi_sum = float('inf')
+        max_pain_strike = 0
 
-             signal = "Neutral"
-             pct_change = data['pct_change']
+        chain_list_result = []
 
-             # Divergence Logic:
-             # If price is dropping sharply but PCR is high (>1.2), puts are being heavily written.
-             # Smart money is providing support. Bullish Divergence.
-             if pct_change < -0.5 and pcr > 1.2:
-                 signal = "Bullish Divergence"
+        for strike in sorted(chain_data.keys(), reverse=True): # Descending for UI (Calls left, Puts right, highest strike top)
+            data = chain_data[strike]
+            ce_oi = data['CE_OI']
+            pe_oi = data['PE_OI']
 
-             # If price is rising sharply but PCR is low (<0.8), calls are being heavily written.
-             # Smart money is creating resistance. Bearish Divergence.
-             elif pct_change > 0.5 and pcr < 0.8:
-                 signal = "Bearish Divergence"
+            total_ce_oi += ce_oi
+            total_pe_oi += pe_oi
 
-             # We'll return everything to the frontend to allow users to see the raw data,
-             # but the frontend can filter or highlight based on signal.
-             all_results.append({
-                 "underlying": data['name'],
-                 "spot_price": data['ltp'],
-                 "price_pct_change": pct_change,
-                 "call_oi": ce_oi,
-                 "put_oi": pe_oi,
-                 "pcr": pcr,
-                 "signal": signal
-             })
+            if ce_oi > max_ce_oi:
+                max_ce_oi = ce_oi
+                resistance_strike = strike
 
-        return all_results
+            if pe_oi > max_pe_oi:
+                max_pe_oi = pe_oi
+                support_strike = strike
+
+            # Simple Max Pain estimation: Strike where intrinsic value of all options is lowest.
+            # For a quick proxy, strike with the highest aggregate OI (CE + PE) often gravitates towards Max Pain in Indian markets
+            # But the true max pain formula requires calculating payoff. Let's do a simplified proxy: Highest combined OI
+            combined_oi = ce_oi + pe_oi
+            if combined_oi > 0:
+                 # Actual Max Pain logic: Find strike that causes minimum loss to option writers.
+                 # We will loop all strikes later to compute this precisely.
+                 pass
+
+            # Strike-level PCR
+            strike_pcr = pe_oi / ce_oi if ce_oi > 0 else 0
+
+            chain_list_result.append({
+                "strike": strike,
+                "is_atm": (strike == atm_strike),
+                "ce_oi": ce_oi,
+                "ce_ltp": data['CE_LTP'],
+                "pe_oi": pe_oi,
+                "pe_ltp": data['PE_LTP'],
+                "strike_pcr": strike_pcr
+            })
+
+        # Calculate actual Max Pain
+        min_loss = float('inf')
+        for test_strike in target_strikes:
+            total_loss = 0
+            for strike in target_strikes:
+                 data = chain_data[strike]
+                 # CE Loss: if expiry happens at test_strike, CE writer loses if test_strike > strike
+                 if test_strike > strike:
+                      total_loss += (test_strike - strike) * data['CE_OI']
+                 # PE Loss: if expiry happens at test_strike, PE writer loses if test_strike < strike
+                 if test_strike < strike:
+                      total_loss += (strike - test_strike) * data['PE_OI']
+
+            if total_loss < min_loss:
+                min_loss = total_loss
+                max_pain_strike = test_strike
+
+        overall_pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 0
+
+        sentiment = "Neutral"
+        if overall_pcr > 1.2: sentiment = "Highly Bullish"
+        elif overall_pcr > 1.0: sentiment = "Bullish"
+        elif overall_pcr < 0.6: sentiment = "Highly Bearish"
+        elif overall_pcr < 0.8: sentiment = "Bearish"
+
+        return {
+             "underlying": "NIFTY 50",
+             "spot_price": nifty_ltp,
+             "spot_pct": nifty_pct,
+             "expiry": expiry_str,
+             "atm_strike": atm_strike,
+             "overall_pcr": overall_pcr,
+             "sentiment": sentiment,
+             "max_pain": max_pain_strike,
+             "support": support_strike,
+             "resistance": resistance_strike,
+             "total_ce_oi": total_ce_oi,
+             "total_pe_oi": total_pe_oi,
+             "chain": chain_list_result
+        }
 
 if __name__ == "__main__":
     import pandas as pd
