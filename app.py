@@ -19,6 +19,10 @@ def mean_reversion():
 def stat_arb():
     return render_template('stat_arb.html')
 
+@app.route('/strategy/oi-divergence')
+def oi_divergence():
+    return render_template('oi_divergence.html')
+
 # Global state for caching
 _ingestor = None
 _stock_mappings = None
@@ -133,6 +137,37 @@ def api_stat_arb_batch(batch_id):
 
         arb_results = ingestor.analyze_stat_arb_batch(batch_pairs)
         return jsonify({"status": "success", "data": arb_results})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/oi-divergence/init')
+def api_oi_divergence_init():
+    try:
+        ingestor, mappings = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+            return jsonify({"status": "error", "message": "Failed to authenticate with Angel One API."}), 401
+
+        import math
+        # OI Divergence is fast (just 2 calls: one for spot, one for NFO tokens), so we can do larger batches like 25.
+        total_batches = math.ceil(len(mappings) / 25.0)
+        return jsonify({"status": "success", "total_batches": total_batches})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/oi-divergence/batch/<int:batch_id>')
+def api_oi_divergence_batch(batch_id):
+    try:
+        ingestor, mappings = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+             return jsonify({"status": "error", "message": "Failed to authenticate."}), 401
+
+        start_idx = batch_id * 25
+        batch_mappings = mappings[start_idx:start_idx+25]
+
+        divergence_results = ingestor.analyze_oi_divergence_batch(batch_mappings)
+        return jsonify({"status": "success", "data": divergence_results})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

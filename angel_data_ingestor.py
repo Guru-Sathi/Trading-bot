@@ -81,16 +81,20 @@ class AngelDataIngestor:
         else:
             raise Exception(f"Failed to get profile: {response.status_code}, {response.text}")
 
+    def get_scrip_master(self):
+        """Downloads and returns the raw Scrip Master JSON data."""
+        if not hasattr(self, '_scrip_master_cache'):
+            print("Downloading Scrip Master...")
+            scrip_url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
+            response = requests.get(scrip_url)
+            if response.status_code != 200:
+                raise Exception("Failed to download Scrip Master file.")
+            self._scrip_master_cache = response.json()
+        return self._scrip_master_cache
+
     def get_spot_fut_mapping(self):
         """Builds a mapping of Spot tokens, Near-Month Future tokens, and Lot Sizes."""
-        print("Downloading Scrip Master for mapping...")
-        scrip_url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
-        response = requests.get(scrip_url)
-        
-        if response.status_code != 200:
-            raise Exception("Failed to download Scrip Master file.")
-            
-        data = response.json()
+        data = self.get_scrip_master()
         
         # 1. Create a fast lookup dictionary for NSE Spot tokens (Cash market)
         nse_spot_dict = {
@@ -356,6 +360,178 @@ class AngelDataIngestor:
                             "correlation": float(correlation),
                             "z_score": float(z_score)
                         })
+
+        return all_results
+
+    def get_options_dict(self):
+        """Parses Scrip Master for Near-Month Options (CE/PE) mapped to Underlying names."""
+        data = self.get_scrip_master()
+
+        # Get all Options
+        opt_list = [item for item in data if item['exch_seg'] == 'NFO' and item['instrumenttype'] in ['OPTSTK', 'OPTIDX']]
+
+        # Parse expiry dates properly to sort chronologically
+        from datetime import datetime
+        for opt in opt_list:
+            try:
+                # Angel One expiry format e.g. "26OCT2023"
+                opt['parsed_expiry'] = datetime.strptime(opt['expiry'], '%d%b%Y')
+            except ValueError:
+                # Fallback far into the future if parsing fails
+                opt['parsed_expiry'] = datetime(2100, 1, 1)
+
+        opt_list.sort(key=lambda x: (x['name'], x['parsed_expiry'], float(x['strike']) if float(x['strike']) > 0 else 0))
+
+        options_dict = {}
+        for opt in opt_list:
+            name = opt['name']
+            strike = float(opt['strike']) / 100.0  # Angel One strikes are multiplied by 100
+
+            # Extract CE or PE safely from the end of the symbol
+            opt_type = opt['symbol'][-2:]
+            if opt_type not in ['CE', 'PE']:
+                 continue
+
+            expiry = opt['expiry']
+
+            if name not in options_dict:
+                options_dict[name] = {}
+
+            # Only keep the nearest expiry (since we sorted, the first we see is nearest, but we need to group by strike)
+            if strike not in options_dict[name]:
+                 options_dict[name][strike] = {}
+
+            if opt_type not in options_dict[name][strike]:
+                 options_dict[name][strike][opt_type] = {
+                      'token': opt['token'],
+                      'symbol': opt['symbol'],
+                      'expiry': expiry
+                 }
+        return options_dict
+
+    def analyze_oi_divergence_batch(self, mappings):
+        """Analyzes ATM Options OI against Spot Price changes for Divergence Signals."""
+        all_results = []
+        options_dict = self.get_options_dict()
+
+        # 1. Fetch FULL quote for spot tokens to get LTP and previous Close (for % change)
+        url = f"{self.base_url}rest/secure/angelbroking/market/v1/quote/"
+        nse_tokens = [pair['spot_token'] for pair in mappings]
+
+        payload = {
+            "mode": "FULL",
+            "exchangeTokens": {
+                "NSE": nse_tokens
+            }
+        }
+
+        spot_data = {}
+        response = requests.post(url, headers=self.headers, json=payload)
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("status") is True:
+                fetched_data = result.get("data", {}).get("fetched", [])
+                for item in fetched_data:
+                     spot_data[item['symbolToken']] = {
+                         'ltp': float(item.get('ltp', 0)),
+                         'close': float(item.get('close', 0))
+                     }
+
+        # 2. Identify ATM strikes and collect their option tokens to fetch OI
+        nfo_tokens_to_fetch = []
+        opt_requests_map = {} # Maps spot token -> { 'ce_token': .., 'pe_token': .. }
+
+        for pair in mappings:
+            spot_token = pair['spot_token']
+            name = pair['name']
+
+            if spot_token not in spot_data or name not in options_dict:
+                 continue
+
+            ltp = spot_data[spot_token]['ltp']
+            close = spot_data[spot_token]['close']
+            if close == 0: continue
+
+            price_pct_change = ((ltp - close) / close) * 100
+
+            # Find closest strike (ATM)
+            available_strikes = list(options_dict[name].keys())
+            if not available_strikes: continue
+
+            atm_strike = min(available_strikes, key=lambda x: abs(x - ltp))
+
+            opt_chain = options_dict[name][atm_strike]
+            if 'CE' in opt_chain and 'PE' in opt_chain:
+                 ce_token = opt_chain['CE']['token']
+                 pe_token = opt_chain['PE']['token']
+                 nfo_tokens_to_fetch.extend([ce_token, pe_token])
+                 opt_requests_map[spot_token] = {
+                      'name': name,
+                      'ltp': ltp,
+                      'pct_change': price_pct_change,
+                      'atm_strike': atm_strike,
+                      'ce_token': ce_token,
+                      'pe_token': pe_token
+                 }
+
+        if not nfo_tokens_to_fetch:
+             return all_results
+
+        # 3. Fetch OI for the ATM options
+        payload_nfo = {
+            "mode": "FULL",
+            "exchangeTokens": {
+                "NFO": nfo_tokens_to_fetch
+            }
+        }
+
+        oi_dict = {}
+        response_nfo = requests.post(url, headers=self.headers, json=payload_nfo)
+        if response_nfo.status_code == 200:
+            result = response_nfo.json()
+            if result.get("status") is True:
+                fetched_data = result.get("data", {}).get("fetched", [])
+                for item in fetched_data:
+                     # 'opnInterest' is the field returned by Angel One for OI
+                     oi_dict[item['symbolToken']] = float(item.get('opnInterest', 0))
+
+        # 4. Calculate PCR and Signals
+        for spot_token, data in opt_requests_map.items():
+             ce_oi = oi_dict.get(data['ce_token'], 0)
+             pe_oi = oi_dict.get(data['pe_token'], 0)
+
+             # Avoid division by zero
+             if ce_oi == 0 and pe_oi == 0: continue
+
+             # PCR = Put OI / Call OI
+             pcr = pe_oi / ce_oi if ce_oi > 0 else float('inf')
+             if pcr == float('inf'): continue # ignore extremes for UI clarity
+
+             signal = "Neutral"
+             pct_change = data['pct_change']
+
+             # Divergence Logic:
+             # If price is dropping sharply but PCR is high (>1.2), puts are being heavily written.
+             # Smart money is providing support. Bullish Divergence.
+             if pct_change < -0.5 and pcr > 1.2:
+                 signal = "Bullish Divergence"
+
+             # If price is rising sharply but PCR is low (<0.8), calls are being heavily written.
+             # Smart money is creating resistance. Bearish Divergence.
+             elif pct_change > 0.5 and pcr < 0.8:
+                 signal = "Bearish Divergence"
+
+             # We'll return everything to the frontend to allow users to see the raw data,
+             # but the frontend can filter or highlight based on signal.
+             all_results.append({
+                 "underlying": data['name'],
+                 "spot_price": data['ltp'],
+                 "price_pct_change": pct_change,
+                 "call_oi": ce_oi,
+                 "put_oi": pe_oi,
+                 "pcr": pcr,
+                 "signal": signal
+             })
 
         return all_results
 
