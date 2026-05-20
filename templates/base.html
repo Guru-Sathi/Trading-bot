@@ -41,12 +41,19 @@
                 <div class="hidden md:block">
                     <div class="ml-10 flex items-baseline space-x-4">
                         <a href="/" class="text-gray-300 hover:text-white hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition-colors">Strategies</a>
+                        <a href="/watchlist" class="text-gray-300 hover:text-white hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1">
+                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                            Watchlist
+                        </a>
                         <a href="#" class="text-gray-300 hover:text-white hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition-colors">Settings</a>
                     </div>
                 </div>
             </div>
         </div>
     </nav>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
 
     <!-- Main Content -->
     <main class="flex-grow">
@@ -63,5 +70,90 @@
             </p>
         </div>
     </footer>
+
+    <!-- Global Watchlist Utilities -->
+    <script>
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toastId = 'toast-' + Date.now();
+
+            let colorClasses = type === 'success'
+                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                : 'bg-rose-500/20 border-rose-500/50 text-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.3)]';
+
+            const icon = type === 'success'
+                ? `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
+                : `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+
+            const toastHTML = `
+                <div id="${toastId}" class="flex items-center p-4 mb-2 border rounded-lg glass-panel backdrop-blur-md transition-all duration-300 transform translate-y-0 opacity-100 ${colorClasses}" role="alert">
+                    ${icon}
+                    <div class="text-sm font-medium">${message}</div>
+                </div>
+            `;
+
+            container.insertAdjacentHTML('beforeend', toastHTML);
+
+            // Auto remove after 3 seconds
+            setTimeout(() => {
+                const el = document.getElementById(toastId);
+                if(el) {
+                    el.classList.replace('translate-y-0', 'translate-y-2');
+                    el.classList.replace('opacity-100', 'opacity-0');
+                    setTimeout(() => el.remove(), 300);
+                }
+            }, 3000);
+        }
+
+        // --- Watchlist LocalStorage CRUD ---
+        const WATCHLIST_KEY = 'algo_dashboard_watchlist';
+        window.WATCHLIST_KEY = WATCHLIST_KEY; // Explicitly attach to window for global access
+
+        function getWatchlist() {
+            try {
+                const data = localStorage.getItem(WATCHLIST_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function addToWatchlist(stock, ltp, strategy, metricLabel, metricValue) {
+            let watchlist = getWatchlist();
+
+            // Prevent duplicates based on stock and strategy
+            const exists = watchlist.find(item => item.stock === stock && item.strategy === strategy);
+            if (exists) {
+                showToast(`${stock} is already in Watchlist from ${strategy}`, 'error');
+                return;
+            }
+
+            const newItem = {
+                id: Date.now().toString(),
+                stock: stock,
+                ltp: ltp,
+                strategy: strategy,
+                metricLabel: metricLabel,
+                metricValue: metricValue,
+                dateAdded: new Date().toLocaleString()
+            };
+
+            watchlist.push(newItem);
+            localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watchlist));
+            showToast(`Added ${stock} to Watchlist!`);
+        }
+
+        function removeFromWatchlist(id) {
+            let watchlist = getWatchlist();
+            watchlist = watchlist.filter(item => item.id !== id);
+            localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watchlist));
+            showToast('Removed from Watchlist.', 'success');
+        }
+
+        // Expose to window for inline onclick handlers
+        window.addToWatchlist = addToWatchlist;
+        window.removeFromWatchlist = removeFromWatchlist;
+        window.getWatchlist = getWatchlist;
+    </script>
 </body>
 </html>

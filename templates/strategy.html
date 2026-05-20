@@ -149,7 +149,8 @@
                         <th class="px-4 py-3">Premium (%)</th>
                         <th class="px-4 py-3">Lot Size</th>
                         <th class="px-4 py-3 text-emerald-400">Gross Profit (₹)</th>
-                        <th class="px-4 py-3 rounded-tr-lg">Spot Capital (₹)</th>
+                        <th class="px-4 py-3">Spot Capital (₹)</th>
+                        <th class="px-4 py-3 rounded-tr-lg text-center">Save</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -192,7 +193,8 @@
                     emptyTable: "Scanning market for opportunities..."
                 },
                 columnDefs: [
-                    { type: 'num', targets: [1, 2, 3, 4, 5, 6] }
+                    { type: 'num', targets: [1, 2, 3, 4, 5, 6] },
+                    { orderable: false, targets: [7] }
                 ]
             });
         }
@@ -213,6 +215,7 @@
             if (dataBatch.length === 0) return;
 
             const rowsToAdd = dataBatch.map(item => {
+                const saveBtn = `<button onclick="window.addToWatchlist('${item.Stock}', '${formatCurrency(item.Spot)}', 'Cash-Fut Arb', 'Premium', '${item['Premium_%']}%')" class="p-1 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/20 rounded transition-colors" title="Save to Watchlist"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg></button>`;
                 return [
                     `<span class="font-medium text-white">${item.Stock}</span>`,
                     formatCurrency(item.Spot),
@@ -220,7 +223,8 @@
                     `<span class="text-cyan-400 font-semibold">${item['Premium_%']}%</span>`,
                     item.Lot_Size.toLocaleString('en-IN'),
                     `<span class="font-bold text-emerald-400">₹${formatCurrency(item['Gross_Profit(₹)'])}</span>`,
-                    `₹${formatCurrency(item['Spot_Capital(₹)'])}`
+                    `₹${formatCurrency(item['Spot_Capital(₹)'])}`,
+                    saveBtn
                 ];
             });
 

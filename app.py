@@ -27,6 +27,10 @@ def oi_divergence():
 def index_weightage():
     return render_template('index_weightage.html')
 
+@app.route('/watchlist')
+def watchlist():
+    return render_template('watchlist.html')
+
 # Global state for caching
 _ingestor = None
 _stock_mappings = None

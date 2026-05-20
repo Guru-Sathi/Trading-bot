@@ -173,7 +173,8 @@
                         <th class="px-4 py-3">Weight (%)</th>
                         <th class="px-4 py-3">LTP (₹)</th>
                         <th class="px-4 py-3">Price % Chg</th>
-                        <th class="px-4 py-3 rounded-tr-lg">Contribution to Index</th>
+                        <th class="px-4 py-3">Contribution to Index</th>
+                        <th class="px-4 py-3 rounded-tr-lg text-center">Save</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -258,6 +259,9 @@
                              if (item.index === 'NIFTY 50') indexBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">NIFTY 50</span>';
                              else if (item.index === 'NIFTY BANK') indexBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">NIFTY BANK</span>';
 
+                             const pctStrClean = (item.pct_change > 0 ? '+' : '') + item.pct_change.toFixed(2) + '%';
+                             const saveBtn = `<button onclick="window.addToWatchlist('${item.stock} (${item.index})', '${formatCurrency(item.ltp)}', 'Index Weightage', '% Change', '${pctStrClean}')" class="p-1 text-slate-400 hover:text-sky-400 hover:bg-sky-500/20 rounded transition-colors" title="Save to Watchlist"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg></button>`;
+
                              const tr = `
                                 <tr class="border-b border-slate-700/50 hover:bg-slate-800/50 transition-colors">
                                     <td class="px-4 py-3">${indexBadge}</td>
@@ -266,6 +270,7 @@
                                     <td class="px-4 py-3">₹${formatCurrency(item.ltp)}</td>
                                     <td class="px-4 py-3">${getPctString(item.pct_change)}</td>
                                     <td class="px-4 py-3">${getPctString(contribution)}</td>
+                                    <td class="px-4 py-3 text-center">${saveBtn}</td>
                                 </tr>
                              `;
                              tbody.append(tr);
@@ -278,7 +283,10 @@
                             language: {
                                 search: "Search Stock:",
                                 lengthMenu: "Show _MENU_ entries"
-                            }
+                            },
+                            columnDefs: [
+                                { orderable: false, targets: [6] }
+                            ]
                         });
 
                         $('#loading-state').hide();

@@ -162,7 +162,8 @@
                         <th class="px-4 py-3 text-white border-b border-slate-700 bg-slate-800/80">STRIKE PRICE</th>
                         <th class="px-4 py-3 text-emerald-300 border-b border-emerald-900/50">PUT LTP</th>
                         <th class="px-4 py-3 text-emerald-300 border-b border-emerald-900/50">PUT OI</th>
-                        <th class="px-4 py-3 rounded-tr-lg border-b border-slate-700">Strike PCR</th>
+                        <th class="px-4 py-3 border-b border-slate-700">Strike PCR</th>
+                        <th class="px-4 py-3 rounded-tr-lg border-b border-slate-700 text-center">Save</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -253,6 +254,8 @@
                              const ce_bar = `<div class="absolute right-0 top-0 bottom-0 bg-rose-500/10 z-0" style="width: ${ce_pct}%;"></div>`;
                              const pe_bar = `<div class="absolute left-0 top-0 bottom-0 bg-emerald-500/10 z-0" style="width: ${pe_pct}%;"></div>`;
 
+                             const saveBtn = `<button onclick="window.addToWatchlist('NIFTY ${formatCurrency(row.strike)} Options', 'Spot: ₹${formatCurrency(data.spot_price)}', 'OI Divergence', 'Strike PCR', '${row.strike_pcr.toFixed(2)}')" class="p-1 text-slate-400 hover:text-amber-400 hover:bg-amber-500/20 rounded transition-colors" title="Save to Watchlist"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg></button>`;
+
                              const tr = `
                                 <tr class="border-b border-slate-700/30 hover:bg-slate-800/30 transition-colors">
                                     <td class="px-4 py-2 relative text-rose-200">${ce_bar}<span class="relative z-10">${formatNumber(row.ce_oi)}</span></td>
@@ -261,6 +264,7 @@
                                     <td class="px-4 py-2 text-slate-300">₹${formatCurrency(row.pe_ltp)}</td>
                                     <td class="px-4 py-2 relative text-emerald-200">${pe_bar}<span class="relative z-10">${formatNumber(row.pe_oi)}</span></td>
                                     <td class="px-4 py-2"><span class="${getPCRColor(row.strike_pcr)}">${row.strike_pcr.toFixed(2)}</span></td>
+                                    <td class="px-4 py-2 text-center">${saveBtn}</td>
                                 </tr>
                              `;
                              tbody.append(tr);

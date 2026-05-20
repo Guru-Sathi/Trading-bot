@@ -149,7 +149,8 @@
                         <th class="px-4 py-3 border-b border-slate-700 bg-slate-800/30 text-amber-200">Fund: P/E</th>
                         <th class="px-4 py-3 border-b border-slate-700 bg-slate-800/30 text-emerald-200">Fund: ROE</th>
                         <th class="px-4 py-3 border-b border-slate-700 bg-slate-800/30 text-rose-200">Fund: D/E</th>
-                        <th class="px-4 py-3 rounded-tr-lg border-b border-slate-700 text-white">Composite Score</th>
+                        <th class="px-4 py-3 border-b border-slate-700 text-white">Composite Score</th>
+                        <th class="px-4 py-3 rounded-tr-lg border-b border-slate-700 text-center">Save</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -247,7 +248,8 @@
                             }
                             return data;
                         }
-                    }
+                    },
+                    { orderable: false, targets: [7] }
                 ]
             });
         }
@@ -277,6 +279,8 @@
                 const roeColor = fund.roe > 15 ? 'text-emerald-400' : (fund.roe < 10 ? 'text-rose-400' : 'text-slate-300');
                 const deColor = fund.debt_equity > 1.5 ? 'text-rose-400' : (fund.debt_equity < 0.5 ? 'text-emerald-400' : 'text-slate-300');
 
+                const saveBtn = `<button onclick="window.addToWatchlist('${item.stock}', '${formatCurrency(item.ltp)}', 'Mean Reversion', 'Z-Score', '${zScoreStr}')" class="p-1 text-slate-400 hover:text-pink-400 hover:bg-pink-500/20 rounded transition-colors" title="Save to Watchlist"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg></button>`;
+
                 return [
                     `<div class="font-medium text-white">${item.stock}</div><div class="text-xs text-slate-500">LTP: ₹${formatCurrency(item.ltp)}</div>`,
                     `<span class="${getZScoreColor(item.z_score)}">${zScoreStr}</span>`,
@@ -284,7 +288,8 @@
                     `<span class="${peColor}">${fund.pe_ratio || '-'}</span>`,
                     `<span class="${roeColor}">${fund.roe ? fund.roe + '%' : '-'}</span>`,
                     `<span class="${deColor}">${fund.debt_equity || '-'}</span>`,
-                    getCompositeBadge(item.z_score, fund.health_score || 5)
+                    getCompositeBadge(item.z_score, fund.health_score || 5),
+                    saveBtn
                 ];
             });
 

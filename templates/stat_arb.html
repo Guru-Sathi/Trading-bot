@@ -149,7 +149,8 @@
                         <th class="px-4 py-3">Ratio (A/B)</th>
                         <th class="px-4 py-3">Correlation (ρ)</th>
                         <th class="px-4 py-3 text-white">Z-Score</th>
-                        <th class="px-4 py-3 rounded-tr-lg">Trade Signal</th>
+                        <th class="px-4 py-3">Trade Signal</th>
+                        <th class="px-4 py-3 rounded-tr-lg text-center">Save</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -220,7 +221,8 @@
                             }
                             return data;
                         }
-                    }
+                    },
+                    { orderable: false, targets: [7] }
                 ]
             });
         }
@@ -242,6 +244,8 @@
 
             const rowsToAdd = dataBatch.map(item => {
                 const zScoreStr = (item.z_score > 0 ? '+' : '') + item.z_score.toFixed(2);
+                const saveBtn = `<button onclick="window.addToWatchlist('${item.stock_a} / ${item.stock_b}', 'Ratio: ${item.ratio.toFixed(4)}', 'Pairs Trading', 'Z-Score', '${zScoreStr}')" class="p-1 text-slate-400 hover:text-purple-400 hover:bg-purple-500/20 rounded transition-colors" title="Save to Watchlist"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg></button>`;
+
                 return [
                     `<span class="font-medium text-white">${item.stock_a} / ${item.stock_b}</span>`,
                     `₹${formatCurrency(item.ltp_a)}`,
@@ -249,7 +253,8 @@
                     item.ratio.toFixed(4),
                     (item.correlation * 100).toFixed(1) + '%',
                     `<span class="${getZScoreColor(item.z_score)}">${zScoreStr}</span>`,
-                    getSignalBadge(item.z_score, item.stock_a.split('-')[0], item.stock_b.split('-')[0])
+                    getSignalBadge(item.z_score, item.stock_a.split('-')[0], item.stock_b.split('-')[0]),
+                    saveBtn
                 ];
             });
 
