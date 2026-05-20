@@ -31,6 +31,10 @@ def index_weightage():
 def watchlist():
     return render_template('watchlist.html')
 
+@app.route('/strategy/momentum')
+def momentum():
+    return render_template('momentum.html')
+
 # Global state for caching
 _ingestor = None
 _stock_mappings = None
@@ -171,6 +175,37 @@ def api_index_weightage_analyze():
              return jsonify({"status": "error", "message": "Failed to authenticate."}), 401
 
         results = ingestor.analyze_index_weightage(mappings)
+        return jsonify({"status": "success", "data": results})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/momentum/init')
+def api_momentum_init():
+    try:
+        ingestor, mappings = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+            return jsonify({"status": "error", "message": "Failed to authenticate with Angel One API."}), 401
+
+        import math
+        # Momentum requires historical data per stock (~0.5s per stock), so batch small
+        total_batches = math.ceil(len(mappings) / 5.0)
+        return jsonify({"status": "success", "total_batches": total_batches})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/momentum/batch/<int:batch_id>')
+def api_momentum_batch(batch_id):
+    try:
+        ingestor, mappings = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+             return jsonify({"status": "error", "message": "Failed to authenticate."}), 401
+
+        start_idx = batch_id * 5
+        batch_mappings = mappings[start_idx:start_idx+5]
+
+        results = ingestor.analyze_momentum_batch(batch_mappings)
         return jsonify({"status": "success", "data": results})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

@@ -761,6 +761,97 @@ class AngelDataIngestor:
 
         return final_result
 
+    def calculate_rsi(self, series, period=14):
+        """Calculates the Relative Strength Index (RSI)."""
+        delta = series.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi.iloc[-1] if not rsi.empty else 50.0
+
+    def analyze_momentum_batch(self, mappings):
+        """Analyzes a batch of stocks for Momentum Breakouts."""
+        all_results = []
+
+        # 1. Fetch real-time LTP and Volume for the batch
+        url = f"{self.base_url}rest/secure/angelbroking/market/v1/quote/"
+        nse_tokens = [pair['spot_token'] for pair in mappings]
+
+        payload = {
+            "mode": "FULL",
+            "exchangeTokens": {
+                "NSE": nse_tokens
+            }
+        }
+
+        rt_dict = {}
+        response = requests.post(url, headers=self.headers, json=payload)
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("status") is True:
+                fetched_data = result.get("data", {}).get("fetched", [])
+                for item in fetched_data:
+                    rt_dict[item['symbolToken']] = {
+                        "ltp": float(item.get('ltp', 0)),
+                        "volume": float(item.get('tradeVolume', 0))
+                    }
+
+        # 2. Fetch historical data & calculate momentum stats
+        for pair in mappings:
+            token = pair['spot_token']
+            stock_name = pair['name']
+
+            rt_data = rt_dict.get(token)
+            if not rt_data:
+                continue
+
+            ltp = rt_data['ltp']
+            today_vol = rt_data['volume']
+
+            # Fetch 60 days to ensure we have enough data for 50-day high and 14-day RSI
+            df = self.get_historical_data(token, days_back=60)
+
+            if df is not None and len(df) >= 20:
+                # Calculate 50-Day High (or max available if less than 50 but > 20)
+                high_50d = df['high'].rolling(window=min(50, len(df))).max().iloc[-1]
+
+                # Calculate 20-Day Average Volume
+                avg_vol_20d = df['volume'].rolling(window=20).mean().iloc[-1]
+
+                # Calculate 14-Day RSI
+                rsi_14d = self.calculate_rsi(df['close'], period=14)
+
+                if pd.notna(high_50d) and pd.notna(avg_vol_20d) and avg_vol_20d > 0:
+
+                    dist_to_high = ((ltp - high_50d) / high_50d) * 100
+                    vol_pct = (today_vol / avg_vol_20d) * 100 if avg_vol_20d > 0 else 0
+
+                    # Filtering criteria to only return interesting momentum setups
+                    # e.g., Volume must be at least 150% of average, RSI must be strong but not exhausted
+                    if vol_pct >= 150 and rsi_14d >= 55:
+
+                        signal = "Developing"
+                        if dist_to_high > 0 and rsi_14d < 85:
+                            signal = "Strong Breakout"
+                        elif rsi_14d >= 85:
+                            signal = "Overextended"
+
+                        all_results.append({
+                            "stock": stock_name + "-EQ",
+                            "ltp": ltp,
+                            "high_50d": float(high_50d),
+                            "dist_to_high": dist_to_high,
+                            "today_vol": today_vol,
+                            "avg_vol": float(avg_vol_20d),
+                            "vol_pct": vol_pct,
+                            "rsi": float(rsi_14d),
+                            "signal": signal
+                        })
+
+        return all_results
+
 if __name__ == "__main__":
     import pandas as pd
     
