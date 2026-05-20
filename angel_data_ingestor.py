@@ -852,6 +852,114 @@ class AngelDataIngestor:
 
         return all_results
 
+    def get_exchange_arb_mapping(self):
+        """Finds stocks that are listed on both NSE and BSE to look for arbitrage."""
+        data = self.get_scrip_master()
+
+        # Build dictionary of all BSE stocks mapping name -> token
+        bse_dict = {
+            item['name']: item['token']
+            for item in data
+            if item['exch_seg'] == 'BSE'
+        }
+
+        # Cross reference with NSE EQ stocks
+        nse_list = [
+            item for item in data
+            if item['exch_seg'] == 'NSE' and item['symbol'].endswith('-EQ')
+        ]
+
+        mappings = []
+        for nse_item in nse_list:
+            name = nse_item['name']
+            if name in bse_dict:
+                mappings.append({
+                    'name': name,
+                    'nse_token': nse_item['token'],
+                    'bse_token': bse_dict[name]
+                })
+
+        return mappings
+
+    def analyze_exchange_arb_batch(self, mappings):
+        """Analyzes a batch of stocks for NSE vs BSE price differences."""
+        all_results = []
+
+        # 1. Fetch real-time LTPs for both exchanges
+        url = f"{self.base_url}rest/secure/angelbroking/market/v1/quote/"
+
+        nse_tokens = [pair['nse_token'] for pair in mappings]
+        bse_tokens = [pair['bse_token'] for pair in mappings]
+
+        payload = {
+            "mode": "LTP",
+            "exchangeTokens": {
+                "NSE": nse_tokens,
+                "BSE": bse_tokens
+            }
+        }
+
+        ltp_dict = {}
+        response = requests.post(url, headers=self.headers, json=payload)
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("status") is True:
+                fetched_data = result.get("data", {}).get("fetched", [])
+                for item in fetched_data:
+                    # Append exchange to token just in case there's an overlap in token IDs across exchanges
+                    key = f"{item['exchange']}_{item['symbolToken']}"
+                    ltp_dict[key] = float(item.get('ltp', 0))
+
+        # 2. Calculate Spreads & Fetch Intraday History if spread is significant
+        for pair in mappings:
+            nse_key = f"NSE_{pair['nse_token']}"
+            bse_key = f"BSE_{pair['bse_token']}"
+
+            ltp_nse = ltp_dict.get(nse_key, 0)
+            ltp_bse = ltp_dict.get(bse_key, 0)
+
+            if ltp_nse == 0 or ltp_bse == 0:
+                continue
+
+            diff = abs(ltp_nse - ltp_bse)
+            min_price = min(ltp_nse, ltp_bse)
+            spread_pct = (diff / min_price) * 100
+
+            duration_mins = 0
+
+            # If there's a meaningful spread, fetch 1-minute historical data to see how long it has lasted
+            if spread_pct >= 0.5:
+                df_nse = self.get_historical_data(pair['nse_token'], exchange='NSE', interval='ONE_MINUTE', days_back=1)
+                df_bse = self.get_historical_data(pair['bse_token'], exchange='BSE', interval='ONE_MINUTE', days_back=1)
+
+                if df_nse is not None and df_bse is not None and not df_nse.empty and not df_bse.empty:
+                    # Merge on datetime
+                    df_merged = pd.merge(df_nse[['datetime', 'close']], df_bse[['datetime', 'close']], on='datetime', suffixes=('_nse', '_bse'))
+
+                    # Sort newest to oldest
+                    df_merged = df_merged.sort_values(by='datetime', ascending=False)
+
+                    # Count contiguous minutes where spread > 0.3%
+                    for _, row in df_merged.iterrows():
+                        hist_diff = abs(row['close_nse'] - row['close_bse'])
+                        hist_min = min(row['close_nse'], row['close_bse'])
+                        hist_spread = (hist_diff / hist_min) * 100 if hist_min > 0 else 0
+
+                        if hist_spread >= 0.3:
+                            duration_mins += 1
+                        else:
+                            break # Broken the contiguous streak
+
+            all_results.append({
+                "stock": pair['name'],
+                "ltp_nse": ltp_nse,
+                "ltp_bse": ltp_bse,
+                "spread_pct": spread_pct,
+                "duration_mins": duration_mins
+            })
+
+        return all_results
+
 if __name__ == "__main__":
     import pandas as pd
     

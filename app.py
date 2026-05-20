@@ -35,6 +35,10 @@ def watchlist():
 def momentum():
     return render_template('momentum.html')
 
+@app.route('/strategy/exchange-arb')
+def exchange_arb():
+    return render_template('exchange_arb.html')
+
 # Global state for caching
 _ingestor = None
 _stock_mappings = None
@@ -206,6 +210,49 @@ def api_momentum_batch(batch_id):
         batch_mappings = mappings[start_idx:start_idx+5]
 
         results = ingestor.analyze_momentum_batch(batch_mappings)
+        return jsonify({"status": "success", "data": results})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+_exchange_arb_cache = None
+
+def get_exchange_arb_mappings():
+    global _exchange_arb_cache
+    if _exchange_arb_cache is None:
+        ingestor, _ = get_ingestor_and_mappings()
+        if ingestor:
+            _exchange_arb_cache = ingestor.get_exchange_arb_mapping()
+    return _exchange_arb_cache
+
+@app.route('/api/exchange-arb/init')
+def api_exchange_arb_init():
+    try:
+        ingestor, _ = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+            return jsonify({"status": "error", "message": "Failed to authenticate."}), 401
+
+        mappings = get_exchange_arb_mappings()
+        import math
+        # We fetch 2 historical queries per stock if spread is detected, batching 25 is safe enough
+        total_batches = math.ceil(len(mappings) / 25.0)
+        return jsonify({"status": "success", "total_batches": total_batches})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/exchange-arb/batch/<int:batch_id>')
+def api_exchange_arb_batch(batch_id):
+    try:
+        ingestor, _ = get_ingestor_and_mappings()
+
+        if not ingestor.auth_token:
+             return jsonify({"status": "error", "message": "Failed to authenticate."}), 401
+
+        mappings = get_exchange_arb_mappings()
+        start_idx = batch_id * 25
+        batch_mappings = mappings[start_idx:start_idx+25]
+
+        results = ingestor.analyze_exchange_arb_batch(batch_mappings)
         return jsonify({"status": "success", "data": results})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
