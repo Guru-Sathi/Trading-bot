@@ -516,7 +516,7 @@ class AngelDataIngestor:
             }
         }
 
-        chain_data = {strike: {'CE_OI': 0, 'CE_LTP': 0, 'PE_OI': 0, 'PE_LTP': 0} for strike in target_strikes}
+        chain_data = {strike: {'CE_OI': 0, 'CE_LTP': 0, 'CE_VOL': 0, 'CE_CHG': 0, 'PE_OI': 0, 'PE_LTP': 0, 'PE_VOL': 0, 'PE_CHG': 0} for strike in target_strikes}
 
         response_nfo = requests.post(url, headers=self.headers, json=payload_nfo)
         if response_nfo.status_code == 200:
@@ -528,13 +528,20 @@ class AngelDataIngestor:
                          opt_type, strike = token_to_strike[token]
                          oi = float(item.get('opnInterest', 0))
                          ltp = float(item.get('ltp', 0))
+                         vol = float(item.get('tradeVolume', 0))
+                         close = float(item.get('close', 0))
+                         chg_pct = ((ltp - close) / close * 100) if close > 0 else 0
 
                          chain_data[strike][f"{opt_type}_OI"] = oi
                          chain_data[strike][f"{opt_type}_LTP"] = ltp
+                         chain_data[strike][f"{opt_type}_VOL"] = vol
+                         chain_data[strike][f"{opt_type}_CHG"] = chg_pct
 
         # 6. Comprehensive Analysis
         total_ce_oi = 0
         total_pe_oi = 0
+        total_ce_vol = 0
+        total_pe_vol = 0
         max_ce_oi = 0
         max_pe_oi = 0
         resistance_strike = 0
@@ -544,14 +551,20 @@ class AngelDataIngestor:
         max_pain_strike = 0
 
         chain_list_result = []
+        trapped_writers_found = False
+        short_squeeze_threat = False
 
-        for strike in sorted(chain_data.keys(), reverse=True): # Descending for UI (Calls left, Puts right, highest strike top)
+        for strike in sorted(chain_data.keys(), reverse=True): # Descending for UI
             data = chain_data[strike]
             ce_oi = data['CE_OI']
             pe_oi = data['PE_OI']
+            ce_vol = data['CE_VOL']
+            pe_vol = data['PE_VOL']
 
             total_ce_oi += ce_oi
             total_pe_oi += pe_oi
+            total_ce_vol += ce_vol
+            total_pe_vol += pe_vol
 
             if ce_oi > max_ce_oi:
                 max_ce_oi = ce_oi
@@ -561,26 +574,47 @@ class AngelDataIngestor:
                 max_pe_oi = pe_oi
                 support_strike = strike
 
-            # Simple Max Pain estimation: Strike where intrinsic value of all options is lowest.
-            # For a quick proxy, strike with the highest aggregate OI (CE + PE) often gravitates towards Max Pain in Indian markets
-            # But the true max pain formula requires calculating payoff. Let's do a simplified proxy: Highest combined OI
-            combined_oi = ce_oi + pe_oi
-            if combined_oi > 0:
-                 # Actual Max Pain logic: Find strike that causes minimum loss to option writers.
-                 # We will loop all strikes later to compute this precisely.
-                 pass
+            # Strike-level PCRs
+            strike_oi_pcr = pe_oi / ce_oi if ce_oi > 0 else 0
+            strike_vol_pcr = pe_vol / ce_vol if ce_vol > 0 else 0
 
-            # Strike-level PCR
-            strike_pcr = pe_oi / ce_oi if ce_oi > 0 else 0
+            # Deep Analysis Signals
+            signal = "Neutral"
+
+            # 1. Trapped Put Writers (Spot dropped below a strike where huge puts were written)
+            if strike > nifty_ltp and pe_oi > (max_pe_oi * 0.7) and data['PE_CHG'] > 50:
+                signal = "⚠️ Trapped Put Writers (Bearish Breakdown)"
+                trapped_writers_found = True
+
+            # 2. Short Squeeze (Spot surged above a strike where huge calls were written)
+            elif strike < nifty_ltp and ce_oi > (max_ce_oi * 0.7) and data['CE_CHG'] > 50:
+                signal = "🔥 Short Squeeze Imminent (Bullish Breakout)"
+                short_squeeze_threat = True
+
+            # 3. Strong Support / Resistance
+            elif strike_oi_pcr > 2.0 and pe_vol > ce_vol * 1.5:
+                signal = "🛡️ Strong Put Writing (Support)"
+            elif strike_oi_pcr < 0.5 and ce_vol > pe_vol * 1.5:
+                signal = "🧱 Strong Call Writing (Resistance)"
+            elif strike_vol_pcr > 2.0 and strike_oi_pcr < 1.0:
+                signal = "⚡ Smart Money Put Buying (Bearish)"
+            elif strike_vol_pcr < 0.5 and strike_oi_pcr > 1.0:
+                signal = "⚡ Smart Money Call Buying (Bullish)"
 
             chain_list_result.append({
                 "strike": strike,
                 "is_atm": (strike == atm_strike),
                 "ce_oi": ce_oi,
+                "ce_vol": ce_vol,
                 "ce_ltp": data['CE_LTP'],
+                "ce_chg": data['CE_CHG'],
                 "pe_oi": pe_oi,
+                "pe_vol": pe_vol,
                 "pe_ltp": data['PE_LTP'],
-                "strike_pcr": strike_pcr
+                "pe_chg": data['PE_CHG'],
+                "strike_oi_pcr": strike_oi_pcr,
+                "strike_vol_pcr": strike_vol_pcr,
+                "signal": signal
             })
 
         # Calculate actual Max Pain
@@ -589,10 +623,8 @@ class AngelDataIngestor:
             total_loss = 0
             for strike in target_strikes:
                  data = chain_data[strike]
-                 # CE Loss: if expiry happens at test_strike, CE writer loses if test_strike > strike
                  if test_strike > strike:
                       total_loss += (test_strike - strike) * data['CE_OI']
-                 # PE Loss: if expiry happens at test_strike, PE writer loses if test_strike < strike
                  if test_strike < strike:
                       total_loss += (strike - test_strike) * data['PE_OI']
 
@@ -600,13 +632,16 @@ class AngelDataIngestor:
                 min_loss = total_loss
                 max_pain_strike = test_strike
 
-        overall_pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 0
+        overall_oi_pcr = total_pe_oi / total_ce_oi if total_ce_oi > 0 else 0
+        overall_vol_pcr = total_pe_vol / total_ce_vol if total_ce_vol > 0 else 0
 
         sentiment = "Neutral"
-        if overall_pcr > 1.2: sentiment = "Highly Bullish"
-        elif overall_pcr > 1.0: sentiment = "Bullish"
-        elif overall_pcr < 0.6: sentiment = "Highly Bearish"
-        elif overall_pcr < 0.8: sentiment = "Bearish"
+        if trapped_writers_found: sentiment = "Panic Selling (Trapped Puts)"
+        elif short_squeeze_threat: sentiment = "Panic Buying (Short Squeeze)"
+        elif overall_oi_pcr > 1.2 and overall_vol_pcr > 1.1: sentiment = "Highly Bullish"
+        elif overall_oi_pcr > 1.0: sentiment = "Bullish (Mild)"
+        elif overall_oi_pcr < 0.6 and overall_vol_pcr < 0.9: sentiment = "Highly Bearish"
+        elif overall_oi_pcr < 0.8: sentiment = "Bearish (Mild)"
 
         return {
              "underlying": "NIFTY 50",
@@ -614,13 +649,12 @@ class AngelDataIngestor:
              "spot_pct": nifty_pct,
              "expiry": expiry_str,
              "atm_strike": atm_strike,
-             "overall_pcr": overall_pcr,
+             "overall_oi_pcr": overall_oi_pcr,
+             "overall_vol_pcr": overall_vol_pcr,
              "sentiment": sentiment,
              "max_pain": max_pain_strike,
              "support": support_strike,
              "resistance": resistance_strike,
-             "total_ce_oi": total_ce_oi,
-             "total_pe_oi": total_pe_oi,
              "chain": chain_list_result
         }
 

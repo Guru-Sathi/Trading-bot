@@ -106,11 +106,11 @@
             <p class="mt-2 text-3xl font-bold text-white" id="stat-spot">-</p>
         </div>
         <div class="glass-panel p-5 rounded-xl border-l-4 border-l-amber-500">
-            <p class="text-sm font-medium text-slate-400">Overall PCR</p>
+            <p class="text-sm font-medium text-slate-400">Overall Sentiment (PCR & Vol)</p>
             <div class="flex items-baseline gap-3 mt-2">
-                <p class="text-3xl font-bold text-amber-400" id="stat-pcr">-</p>
-                <span id="stat-sentiment" class="text-sm font-semibold px-2 py-0.5 rounded border border-slate-600 text-slate-300">-</span>
+                <p class="text-2xl font-bold text-amber-400" id="stat-sentiment">-</p>
             </div>
+            <p class="text-xs text-slate-500 mt-2">OI PCR: <span id="stat-oi-pcr" class="font-bold text-slate-300">-</span> | Vol PCR: <span id="stat-vol-pcr" class="font-bold text-slate-300">-</span></p>
         </div>
         <div class="glass-panel p-5 rounded-xl border-l-4 border-l-rose-500">
             <p class="text-sm font-medium text-slate-400">Resistance (Max Call OI)</p>
@@ -157,12 +157,12 @@
             <table id="oidiv-table" class="w-full text-center text-sm text-slate-300">
                 <thead class="text-xs text-slate-400 uppercase bg-slate-800/50">
                     <tr>
-                        <th class="px-4 py-3 rounded-tl-lg text-rose-300 border-b border-rose-900/50">CALL OI</th>
+                        <th class="px-4 py-3 rounded-tl-lg text-rose-300 border-b border-rose-900/50">CALL OI & VOL</th>
                         <th class="px-4 py-3 text-rose-300 border-b border-rose-900/50">CALL LTP</th>
                         <th class="px-4 py-3 text-white border-b border-slate-700 bg-slate-800/80">STRIKE PRICE</th>
                         <th class="px-4 py-3 text-emerald-300 border-b border-emerald-900/50">PUT LTP</th>
-                        <th class="px-4 py-3 text-emerald-300 border-b border-emerald-900/50">PUT OI</th>
-                        <th class="px-4 py-3 border-b border-slate-700">Strike PCR</th>
+                        <th class="px-4 py-3 text-emerald-300 border-b border-emerald-900/50">PUT OI & VOL</th>
+                        <th class="px-4 py-3 border-b border-slate-700">In-Depth Signal</th>
                         <th class="px-4 py-3 rounded-tr-lg border-b border-slate-700 text-center">Save</th>
                     </tr>
                 </thead>
@@ -224,12 +224,18 @@
                         const pctStr = (data.spot_pct > 0 ? '+' : '') + data.spot_pct.toFixed(2) + '%';
                         $('#stat-spot-pct').text(pctStr).attr('class', `text-xs font-bold px-2 py-1 border rounded ${getPctColor(data.spot_pct)}`);
 
-                        $('#stat-pcr').text(data.overall_pcr.toFixed(2));
+                        $('#stat-oi-pcr').text(data.overall_oi_pcr.toFixed(2));
+                        $('#stat-vol-pcr').text(data.overall_vol_pcr.toFixed(2));
                         $('#stat-sentiment').text(data.sentiment);
 
-                        // Style sentiment
-                        if(data.sentiment.includes('Bullish')) $('#stat-sentiment').addClass('text-emerald-400 border-emerald-500/50 bg-emerald-500/10').removeClass('text-slate-300 text-rose-400');
-                        else if(data.sentiment.includes('Bearish')) $('#stat-sentiment').addClass('text-rose-400 border-rose-500/50 bg-rose-500/10').removeClass('text-slate-300 text-emerald-400');
+                        // Style sentiment deeply
+                        $('#stat-sentiment').removeClass('text-amber-400 text-emerald-400 text-rose-400 text-pink-400 text-orange-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)] drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]');
+
+                        if(data.sentiment.includes('Bullish')) $('#stat-sentiment').addClass('text-emerald-400');
+                        else if(data.sentiment.includes('Bearish')) $('#stat-sentiment').addClass('text-rose-400');
+                        else if(data.sentiment.includes('Short Squeeze')) $('#stat-sentiment').addClass('text-pink-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]');
+                        else if(data.sentiment.includes('Trapped Puts')) $('#stat-sentiment').addClass('text-orange-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]');
+                        else $('#stat-sentiment').addClass('text-amber-400');
 
                         $('#stat-res').text(formatCurrency(data.resistance));
                         $('#stat-sup').text(formatCurrency(data.support));
@@ -254,16 +260,49 @@
                              const ce_bar = `<div class="absolute right-0 top-0 bottom-0 bg-rose-500/10 z-0" style="width: ${ce_pct}%;"></div>`;
                              const pe_bar = `<div class="absolute left-0 top-0 bottom-0 bg-emerald-500/10 z-0" style="width: ${pe_pct}%;"></div>`;
 
-                             const saveBtn = `<button onclick="window.addToWatchlist('NIFTY ${formatCurrency(row.strike)} Options', 'Spot: ₹${formatCurrency(data.spot_price)}', 'OI Divergence', 'Strike PCR', '${row.strike_pcr.toFixed(2)}')" class="p-1 text-slate-400 hover:text-amber-400 hover:bg-amber-500/20 rounded transition-colors" title="Save to Watchlist"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg></button>`;
+                             let sigHtml = `<span class="text-slate-400 text-xs">${row.signal}</span>`;
+                             if (row.signal.includes('Trapped Put') || row.signal.includes('Bearish')) {
+                                 sigHtml = `<span class="px-2 py-1 rounded text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 shadow-[0_0_10px_rgba(244,63,94,0.2)]">${row.signal}</span>`;
+                             } else if (row.signal.includes('Short Squeeze') || row.signal.includes('Bullish')) {
+                                 sigHtml = `<span class="px-2 py-1 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">${row.signal}</span>`;
+                             } else if (row.signal.includes('Support')) {
+                                 sigHtml = `<span class="px-2 py-1 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-300">${row.signal}</span>`;
+                             } else if (row.signal.includes('Resistance')) {
+                                 sigHtml = `<span class="px-2 py-1 rounded text-xs font-semibold bg-rose-500/10 text-rose-300">${row.signal}</span>`;
+                             }
+
+                             const saveBtn = `<button onclick="window.addToWatchlist('NIFTY ${formatCurrency(row.strike)} Options', 'Spot: ₹${formatCurrency(data.spot_price)}', 'OI Divergence', 'Action', '${row.signal.replace(/[^a-zA-Z ]/g, "").trim()}')" class="p-1 text-slate-400 hover:text-amber-400 hover:bg-amber-500/20 rounded transition-colors" title="Save to Watchlist"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg></button>`;
 
                              const tr = `
                                 <tr class="border-b border-slate-700/30 hover:bg-slate-800/30 transition-colors">
-                                    <td class="px-4 py-2 relative text-rose-200">${ce_bar}<span class="relative z-10">${formatNumber(row.ce_oi)}</span></td>
-                                    <td class="px-4 py-2 text-slate-300">₹${formatCurrency(row.ce_ltp)}</td>
+                                    <td class="px-4 py-2 relative text-right">
+                                        ${ce_bar}
+                                        <div class="relative z-10 flex flex-col items-end">
+                                            <span class="text-rose-200 font-medium">${formatNumber(row.ce_oi)}</span>
+                                            <span class="text-xs text-rose-400/70">Vol: ${formatNumber(row.ce_vol)}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-2 text-slate-300">
+                                        <div class="flex flex-col items-center">
+                                            <span>₹${formatCurrency(row.ce_ltp)}</span>
+                                            <span class="text-[10px] ${getPctColor(row.ce_chg)} px-1 rounded">${(row.ce_chg>0?'+':'')}${row.ce_chg.toFixed(1)}%</span>
+                                        </div>
+                                    </td>
                                     <td class="px-4 py-2 text-lg ${strikeClass}">${formatCurrency(row.strike)}</td>
-                                    <td class="px-4 py-2 text-slate-300">₹${formatCurrency(row.pe_ltp)}</td>
-                                    <td class="px-4 py-2 relative text-emerald-200">${pe_bar}<span class="relative z-10">${formatNumber(row.pe_oi)}</span></td>
-                                    <td class="px-4 py-2"><span class="${getPCRColor(row.strike_pcr)}">${row.strike_pcr.toFixed(2)}</span></td>
+                                    <td class="px-4 py-2 text-slate-300">
+                                        <div class="flex flex-col items-center">
+                                            <span>₹${formatCurrency(row.pe_ltp)}</span>
+                                            <span class="text-[10px] ${getPctColor(row.pe_chg)} px-1 rounded">${(row.pe_chg>0?'+':'')}${row.pe_chg.toFixed(1)}%</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-2 relative text-left">
+                                        ${pe_bar}
+                                        <div class="relative z-10 flex flex-col items-start">
+                                            <span class="text-emerald-200 font-medium">${formatNumber(row.pe_oi)}</span>
+                                            <span class="text-xs text-emerald-400/70">Vol: ${formatNumber(row.pe_vol)}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-2 text-center">${sigHtml}</td>
                                     <td class="px-4 py-2 text-center">${saveBtn}</td>
                                 </tr>
                              `;
