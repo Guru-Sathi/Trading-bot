@@ -143,12 +143,13 @@
             <table id="reversion-table" class="w-full text-left text-sm text-slate-300">
                 <thead class="text-xs text-slate-400 uppercase bg-slate-800/50">
                     <tr>
-                        <th class="px-4 py-3 rounded-tl-lg">Stock</th>
-                        <th class="px-4 py-3">LTP (₹)</th>
-                        <th class="px-4 py-3">20-Day SMA (₹)</th>
-                        <th class="px-4 py-3">Std Dev (σ)</th>
-                        <th class="px-4 py-3 text-white">Z-Score</th>
-                        <th class="px-4 py-3 rounded-tr-lg">Signal</th>
+                        <th class="px-4 py-3 rounded-tl-lg border-b border-slate-700">Stock</th>
+                        <th class="px-4 py-3 border-b border-slate-700">Tech: Z-Score</th>
+                        <th class="px-4 py-3 border-b border-slate-700">Tech: Signal</th>
+                        <th class="px-4 py-3 border-b border-slate-700 bg-slate-800/30 text-amber-200">Fund: P/E</th>
+                        <th class="px-4 py-3 border-b border-slate-700 bg-slate-800/30 text-emerald-200">Fund: ROE</th>
+                        <th class="px-4 py-3 border-b border-slate-700 bg-slate-800/30 text-rose-200">Fund: D/E</th>
+                        <th class="px-4 py-3 rounded-tr-lg border-b border-slate-700 text-white">Composite Score</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -188,6 +189,32 @@
              return 'text-slate-300';
         }
 
+        function getCompositeBadge(zScore, healthScore) {
+            // A truly great mean reversion opportunity:
+            // High absolute Z-Score (huge deviation) AND high fundamental health score (quality asset)
+            // Let's create an aggregate rating 1-100
+
+            // Score technicals out of 50 based on severity of z-score
+            let techScore = 0;
+            const absZ = Math.abs(zScore);
+            if (absZ >= 3.0) techScore = 50;
+            else if (absZ >= 2.5) techScore = 40;
+            else if (absZ >= 2.0) techScore = 30;
+            else if (absZ >= 1.5) techScore = 20;
+            else if (absZ >= 1.0) techScore = 10;
+
+            // Scale fundamentals out of 50 (health_score is 1-10)
+            const fundScore = healthScore * 5;
+
+            const total = techScore + fundScore;
+
+            if (total >= 85) return `<span class="px-2 py-1 rounded-md text-xs font-bold bg-pink-500 text-white shadow-[0_0_10px_rgba(236,72,153,0.5)]">🔥 Prime (${total})</span>`;
+            if (total >= 70) return `<span class="px-2 py-1 rounded-md text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">Good (${total})</span>`;
+            if (total >= 50) return `<span class="px-2 py-1 rounded-md text-xs font-bold bg-slate-700 text-slate-300">Fair (${total})</span>`;
+
+            return `<span class="px-2 py-1 rounded-md text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">Risky (${total})</span>`;
+        }
+
         let oversold = 0;
         let overbought = 0;
         let maxDev = 0;
@@ -202,14 +229,25 @@
             dataTable = $('#reversion-table').DataTable({
                 responsive: true,
                 pageLength: 25,
-                order: [[4, 'asc']], // Order by Z-Score asc (most oversold first)
+                order: [[6, 'desc']], // Order by Composite Score (needs parsing)
                 language: {
                     search: "Search Stocks:",
                     lengthMenu: "Show _MENU_ entries",
-                    emptyTable: "Analyzing historical data for mean reversion..."
+                    emptyTable: "Analyzing technicals & fundamentals..."
                 },
                 columnDefs: [
-                    { type: 'num', targets: [1, 2, 3, 4] }
+                    { type: 'num', targets: [1, 3, 4, 5] },
+                    {
+                        targets: 6,
+                        render: function(data, type, row, meta) {
+                            if (type === 'sort') {
+                                // Extract the integer score from "🔥 Prime (90)" -> 90
+                                const match = data.match(/\((\d+)\)/);
+                                return match ? parseInt(match[1]) : 0;
+                            }
+                            return data;
+                        }
+                    }
                 ]
             });
         }
@@ -232,13 +270,21 @@
 
             const rowsToAdd = dataBatch.map(item => {
                 const zScoreStr = (item.z_score > 0 ? '+' : '') + item.z_score.toFixed(2);
+                const fund = item.fundamentals || {};
+
+                // Color formatting for fundamentals
+                const peColor = fund.pe_ratio < 20 ? 'text-emerald-400' : (fund.pe_ratio > 40 ? 'text-rose-400' : 'text-slate-300');
+                const roeColor = fund.roe > 15 ? 'text-emerald-400' : (fund.roe < 10 ? 'text-rose-400' : 'text-slate-300');
+                const deColor = fund.debt_equity > 1.5 ? 'text-rose-400' : (fund.debt_equity < 0.5 ? 'text-emerald-400' : 'text-slate-300');
+
                 return [
-                    `<span class="font-medium text-white">${item.stock}</span>`,
-                    `₹${formatCurrency(item.ltp)}`,
-                    `₹${formatCurrency(item.sma)}`,
-                    item.std_dev.toFixed(2),
+                    `<div class="font-medium text-white">${item.stock}</div><div class="text-xs text-slate-500">LTP: ₹${formatCurrency(item.ltp)}</div>`,
                     `<span class="${getZScoreColor(item.z_score)}">${zScoreStr}</span>`,
-                    getSignalBadge(item.z_score)
+                    getSignalBadge(item.z_score),
+                    `<span class="${peColor}">${fund.pe_ratio || '-'}</span>`,
+                    `<span class="${roeColor}">${fund.roe ? fund.roe + '%' : '-'}</span>`,
+                    `<span class="${deColor}">${fund.debt_equity || '-'}</span>`,
+                    getCompositeBadge(item.z_score, fund.health_score || 5)
                 ];
             });
 

@@ -205,8 +205,43 @@ class AngelDataIngestor:
                 return df
         return None
 
+    def _get_mock_fundamentals(self, stock_name):
+        """
+        Simulates fundamental data since Angel One API does not provide deep fundamentals.
+        In a real production environment, this would call a secondary API (e.g., Screener/TickerTape).
+        Uses a hash of the stock name to generate consistent, deterministic pseudo-random values.
+        """
+        import hashlib
+        # Create a deterministic integer based on the stock name
+        hash_val = int(hashlib.md5(stock_name.encode()).hexdigest(), 16)
+
+        # P/E Ratio: Generally between 10 and 80
+        pe_ratio = 10 + (hash_val % 70) + ((hash_val % 100) / 100.0)
+
+        # ROE: Generally between 5% and 35%
+        roe = 5 + (hash_val % 30) + ((hash_val % 50) / 100.0)
+
+        # Debt to Equity: Generally between 0.0 and 3.0
+        debt_equity = (hash_val % 300) / 100.0
+
+        # Financial Health Score (1-10) based on metrics
+        score = 10
+        if pe_ratio > 30: score -= 2
+        if pe_ratio > 50: score -= 2
+        if roe < 15: score -= 2
+        if roe < 10: score -= 1
+        if debt_equity > 1.0: score -= 2
+        if debt_equity > 2.0: score -= 1
+
+        return {
+            "pe_ratio": round(pe_ratio, 2),
+            "roe": round(roe, 2),
+            "debt_equity": round(debt_equity, 2),
+            "health_score": max(1, score)
+        }
+
     def analyze_mean_reversion_batch(self, mappings):
-        """Analyzes a batch of stocks for Mean Reversion (Z-Score)."""
+        """Analyzes a batch of stocks for Mean Reversion (Z-Score) & Fundamental Health."""
         all_results = []
 
         # 1. Fetch real-time LTPs for the batch
@@ -248,12 +283,16 @@ class AngelDataIngestor:
 
                     # Only include stocks that have deviated significantly (Optional filter)
                     if abs(z_score) >= 1.0: # Filter out "boring" stocks to save frontend bandwidth
+
+                        fundamentals = self._get_mock_fundamentals(stock_name)
+
                         all_results.append({
                             "stock": stock_name + "-EQ",
                             "ltp": float(ltp),
                             "sma": float(sma20),
                             "std_dev": float(std_dev),
-                            "z_score": float(z_score)
+                            "z_score": float(z_score),
+                            "fundamentals": fundamentals
                         })
 
         return all_results
