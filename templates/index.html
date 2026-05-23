@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Strategies Dashboard{% endblock %}
+
+{% block content %}
+<div class="px-4 py-8 sm:px-0">
+    <!-- Header -->
+    <div class="mb-10 text-center sm:text-left">
+        <h1 class="text-4xl font-extrabold tracking-tight text-white mb-2">
+            Active Strategies
+        </h1>
+        <p class="text-lg text-slate-400 max-w-2xl">
+            Monitor and execute your automated trading strategies across different market segments.
+        </p>
+    </div>
+
+    <!-- Strategies Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        <!-- Cash-Fut Arb Card -->
+        <a href="/strategy/cash-fut-arb" class="group block h-full">
+            <div class="glass-panel rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(99,102,241,0.2)] hover:border-indigo-500/50 relative">
+
+                <!-- Glowing accent -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-indigo-500 to-cyan-500"></div>
+
+                <div class="p-6 flex-grow flex flex-col">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="p-3 bg-indigo-500/10 rounded-xl">
+                            <svg class="h-8 w-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
+                        Cash-Fut Arbitrage
+                    </h3>
+
+                    <p class="text-slate-400 text-sm mb-6 flex-grow">
+                        Scans the NSE and NFO segments to find risk-free arbitrage opportunities where Near-Month Futures are trading at a premium to the Spot (Cash) price.
+                    </p>
+
+                    <!-- Stats summary -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto border-t border-slate-700/50 pt-4">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Market</p>
+                            <p class="text-sm font-semibold text-slate-200">NSE / NFO</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Risk Profile</p>
+                            <p class="text-sm font-semibold text-emerald-400">Low</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Mean Reversion Card -->
+        <a href="/strategy/mean-reversion" class="group block h-full">
+            <div class="glass-panel rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(236,72,153,0.2)] hover:border-pink-500/50 relative">
+
+                <!-- Glowing accent -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-pink-500 to-rose-500"></div>
+
+                <div class="p-6 flex-grow flex flex-col">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="p-3 bg-pink-500/10 rounded-xl">
+                            <svg class="h-8 w-8 text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-pink-300 transition-colors">
+                        Mean Reversion
+                    </h3>
+
+                    <p class="text-slate-400 text-sm mb-6 flex-grow">
+                        Identifies overbought and oversold assets by calculating statistical deviations (Z-Scores) from their historical moving averages, betting on a return to the mean.
+                    </p>
+
+                    <!-- Stats summary -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto border-t border-slate-700/50 pt-4">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Market</p>
+                            <p class="text-sm font-semibold text-slate-200">NSE Equities</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Risk Profile</p>
+                            <p class="text-sm font-semibold text-amber-400">Medium</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Stat Arb Card -->
+        <a href="/strategy/stat-arb" class="group block h-full">
+            <div class="glass-panel rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] hover:border-purple-500/50 relative">
+
+                <!-- Glowing accent -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-purple-500 to-fuchsia-500"></div>
+
+                <div class="p-6 flex-grow flex flex-col">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="p-3 bg-purple-500/10 rounded-xl">
+                            <svg class="h-8 w-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors">
+                        Pairs Trading
+                    </h3>
+
+                    <p class="text-slate-400 text-sm mb-6 flex-grow">
+                        Exploits short-term pricing inefficiencies between historically correlated stocks by analyzing the price ratio and betting on statistical convergence.
+                    </p>
+
+                    <!-- Stats summary -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto border-t border-slate-700/50 pt-4">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Market</p>
+                            <p class="text-sm font-semibold text-slate-200">NSE Equities</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Risk Profile</p>
+                            <p class="text-sm font-semibold text-amber-400">Medium</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Options OI Divergence Card -->
+        <a href="/strategy/oi-divergence" class="group block h-full">
+            <div class="glass-panel rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(245,158,11,0.2)] hover:border-amber-500/50 relative">
+
+                <!-- Glowing accent -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500"></div>
+
+                <div class="p-6 flex-grow flex flex-col">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="p-3 bg-amber-500/10 rounded-xl">
+                            <svg class="h-8 w-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-amber-300 transition-colors">
+                        OI Divergence
+                    </h3>
+
+                    <p class="text-slate-400 text-sm mb-6 flex-grow">
+                        Identifies potential trend reversals by comparing spot price action against shifts in Options Open Interest (PCR) for near-month At-The-Money strikes.
+                    </p>
+
+                    <!-- Stats summary -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto border-t border-slate-700/50 pt-4">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Market</p>
+                            <p class="text-sm font-semibold text-slate-200">NFO Options</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Risk Profile</p>
+                            <p class="text-sm font-semibold text-rose-400">High</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Index Weightage Divergence Card -->
+        <a href="/strategy/index-weightage" class="group block h-full">
+            <div class="glass-panel rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(56,189,248,0.2)] hover:border-sky-500/50 relative">
+
+                <!-- Glowing accent -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-sky-500 to-blue-500"></div>
+
+                <div class="p-6 flex-grow flex flex-col">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="p-3 bg-sky-500/10 rounded-xl">
+                            <svg class="h-8 w-8 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-sky-300 transition-colors">
+                        Index Divergence
+                    </h3>
+
+                    <p class="text-slate-400 text-sm mb-6 flex-grow">
+                        Monitors index performance versus the weighted average move of its top heavyweight constituents to detect anomalies, manipulation, or hidden strength/weakness.
+                    </p>
+
+                    <!-- Stats summary -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto border-t border-slate-700/50 pt-4">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Market</p>
+                            <p class="text-sm font-semibold text-slate-200">NSE Indices</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Risk Profile</p>
+                            <p class="text-sm font-semibold text-emerald-400">Low</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Momentum Breakout Card -->
+        <a href="/strategy/momentum" class="group block h-full">
+            <div class="glass-panel rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(34,197,94,0.2)] hover:border-emerald-500/50 relative">
+
+                <!-- Glowing accent -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+
+                <div class="p-6 flex-grow flex flex-col">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="p-3 bg-emerald-500/10 rounded-xl">
+                            <svg class="h-8 w-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-emerald-300 transition-colors">
+                        Momentum Breakout
+                    </h3>
+
+                    <p class="text-slate-400 text-sm mb-6 flex-grow">
+                        Identifies high-probability breakout stocks by analyzing explosive volume spikes, 14-Day RSI strength, and proximity to multi-week highs.
+                    </p>
+
+                    <!-- Stats summary -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto border-t border-slate-700/50 pt-4">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Market</p>
+                            <p class="text-sm font-semibold text-slate-200">NSE Equities</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Risk Profile</p>
+                            <p class="text-sm font-semibold text-rose-400">High</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+
+        <!-- Exchange Arbitrage Card -->
+        <a href="/strategy/exchange-arb" class="group block h-full">
+            <div class="glass-panel rounded-2xl overflow-hidden h-full flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(244,63,94,0.2)] hover:border-rose-500/50 relative">
+
+                <!-- Glowing accent -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-rose-500 to-pink-500"></div>
+
+                <div class="p-6 flex-grow flex flex-col">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="p-3 bg-rose-500/10 rounded-xl">
+                            <svg class="h-8 w-8 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h3 class="text-2xl font-bold text-white mb-2 group-hover:text-rose-300 transition-colors">
+                        Exchange Arbitrage
+                    </h3>
+
+                    <p class="text-slate-400 text-sm mb-6 flex-grow">
+                        Scans identical equities across NSE and BSE to find real-time, sustained pricing inefficiencies and calculate intraday spread duration.
+                    </p>
+
+                    <!-- Stats summary -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto border-t border-slate-700/50 pt-4">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Market</p>
+                            <p class="text-sm font-semibold text-slate-200">NSE / BSE</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">Risk Profile</p>
+                            <p class="text-sm font-semibold text-emerald-400">Low</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+
+    </div>
+</div>
+{% endblock %}
