@@ -35,6 +35,23 @@ def watchlist():
 def paper_trading():
     return render_template('paper_trading.html')
 
+from paper_trading_bot import bot_instance
+
+@app.route('/api/bot/start', methods=['POST'])
+def api_bot_start():
+    success = bot_instance.start()
+    return jsonify({"status": "success" if success else "error", "message": "Bot started" if success else "Bot is already running"})
+
+@app.route('/api/bot/stop', methods=['POST'])
+def api_bot_stop():
+    success = bot_instance.stop()
+    return jsonify({"status": "success", "message": "Bot stopped"})
+
+@app.route('/api/bot/status')
+def api_bot_status():
+    status = bot_instance.get_status()
+    return jsonify({"status": "success", "data": status})
+
 @app.route('/strategy/momentum')
 def momentum():
     return render_template('momentum.html')
