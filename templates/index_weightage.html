@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Index Divergence | Strategy Detail{% endblock %}
+
+{% block extra_head %}
+<!-- DataTables CSS for modern look -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<style>
+    /* Customizing DataTables to fit the dark theme */
+    .dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_filter, .dataTables_wrapper .dataTables_info, .dataTables_wrapper .dataTables_processing, .dataTables_wrapper .dataTables_paginate {
+        color: #94a3b8; /* slate-400 */
+        margin-bottom: 1rem;
+    }
+    .dataTables_wrapper .dataTables_filter input {
+        background-color: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 0.375rem;
+        color: #f8fafc;
+        padding: 0.25rem 0.75rem;
+        margin-left: 0.5rem;
+    }
+    table.dataTable.no-footer {
+        border-bottom: 1px solid #334155;
+    }
+    table.dataTable tbody tr {
+        background-color: transparent;
+    }
+    table.dataTable tbody tr.odd {
+        background-color: rgba(30, 41, 59, 0.3);
+    }
+    table.dataTable tbody tr:hover {
+        background-color: rgba(56, 189, 248, 0.1); /* sky hover */
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+        color: #94a3b8 !important;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+        color: #fff !important;
+        background: #0ea5e9 !important;
+        border: 1px solid #0ea5e9 !important;
+    }
+    /* Loading Spinner */
+    .loader {
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-left-color: #0ea5e9;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="px-4 py-8 sm:px-0">
+
+    <!-- Breadcrumb & Header -->
+    <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <nav class="flex mb-4" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 md:space-x-3 text-sm text-slate-400">
+                    <li class="inline-flex items-center hover:text-sky-400 transition-colors">
+                        <a href="/">Strategies</a>
+                    </li>
+                    <li>
+                        <div class="flex items-center">
+                            <svg class="w-3 h-3 mx-1 text-slate-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                            </svg>
+                            <span class="ml-1 text-slate-300">Index Divergence</span>
+                        </div>
+                    </li>
+                </ol>
+            </nav>
+            <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+                <div class="p-2 bg-sky-500/20 rounded-lg">
+                    <svg class="h-6 w-6 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                    </svg>
+                </div>
+                Index Weightage Divergence
+            </h1>
+        </div>
+
+        <!-- Actions -->
+        <div>
+            <button id="refresh-btn" class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-sky-600 hover:bg-sky-700 shadow-[0_0_15px_rgba(14,165,233,0.5)] transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 focus:ring-offset-slate-900">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                Refresh Data
+            </button>
+        </div>
+    </div>
+
+    <!-- Index Summaries -->
+    <div id="index-summaries" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 hidden">
+        <!-- NIFTY 50 -->
+        <div class="glass-panel rounded-2xl p-6 border-l-4 border-l-emerald-500">
+             <h3 class="text-xl font-bold text-white mb-4">NIFTY 50</h3>
+             <div class="grid grid-cols-2 gap-4">
+                 <div>
+                     <p class="text-sm text-slate-400">Actual Index Move</p>
+                     <p class="text-2xl font-bold mt-1" id="nifty-actual">-</p>
+                 </div>
+                 <div>
+                     <p class="text-sm text-slate-400">Implied Move (Top 10)</p>
+                     <p class="text-2xl font-bold mt-1" id="nifty-implied">-</p>
+                 </div>
+                 <div class="col-span-2 pt-4 border-t border-slate-700/50 mt-2">
+                     <div class="flex justify-between items-center">
+                         <p class="text-sm text-slate-400">Divergence</p>
+                         <span id="nifty-divergence-badge" class="px-2 py-1 text-xs font-bold rounded">-</span>
+                     </div>
+                     <p class="text-lg font-bold text-white mt-1" id="nifty-divergence">-</p>
+                 </div>
+             </div>
+        </div>
+
+        <!-- BANK NIFTY -->
+        <div class="glass-panel rounded-2xl p-6 border-l-4 border-l-amber-500">
+             <h3 class="text-xl font-bold text-white mb-4">BANK NIFTY</h3>
+             <div class="grid grid-cols-2 gap-4">
+                 <div>
+                     <p class="text-sm text-slate-400">Actual Index Move</p>
+                     <p class="text-2xl font-bold mt-1" id="bank-actual">-</p>
+                 </div>
+                 <div>
+                     <p class="text-sm text-slate-400">Implied Move (Top 5)</p>
+                     <p class="text-2xl font-bold mt-1" id="bank-implied">-</p>
+                 </div>
+                 <div class="col-span-2 pt-4 border-t border-slate-700/50 mt-2">
+                     <div class="flex justify-between items-center">
+                         <p class="text-sm text-slate-400">Divergence</p>
+                         <span id="bank-divergence-badge" class="px-2 py-1 text-xs font-bold rounded">-</span>
+                     </div>
+                     <p class="text-lg font-bold text-white mt-1" id="bank-divergence">-</p>
+                 </div>
+             </div>
+        </div>
+    </div>
+
+    <!-- Data Section -->
+    <div class="glass-panel rounded-2xl shadow-xl p-1 sm:p-4">
+
+        <!-- Loading State -->
+        <div id="loading-state" class="py-16 flex flex-col items-center justify-center mb-6">
+            <div class="loader mb-4" id="main-loader"></div>
+            <p class="text-slate-400 mb-2" id="loading-text">Analyzing Index Constituents...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="hidden py-12 px-4 text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-4">
+                <svg class="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-white mb-2">Failed to load data</h3>
+            <p class="text-slate-400 mb-6 max-w-md mx-auto" id="error-message">Check your API credentials and environment variables.</p>
+        </div>
+
+        <!-- Table State -->
+        <div id="table-container" class="hidden overflow-x-auto w-full p-2">
+            <table id="weightage-table" class="w-full text-left text-sm text-slate-300">
+                <thead class="text-xs text-slate-400 uppercase bg-slate-800/50">
+                    <tr>
+                        <th class="px-4 py-3 rounded-tl-lg">Index</th>
+                        <th class="px-4 py-3">Constituent</th>
+                        <th class="px-4 py-3">Weight (%)</th>
+                        <th class="px-4 py-3">LTP (₹)</th>
+                        <th class="px-4 py-3">Price % Chg</th>
+                        <th class="px-4 py-3">Contribution to Index</th>
+                        <th class="px-4 py-3 rounded-tr-lg text-center">Save</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Rows populated by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script>
+    $(document).ready(function() {
+        let dataTable;
+
+        function formatCurrency(val) {
+            return parseFloat(val).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+        }
+
+        function getPctColorClass(pct) {
+             if (pct > 0) return 'text-emerald-400';
+             if (pct < 0) return 'text-rose-400';
+             return 'text-slate-300';
+        }
+
+        function getPctString(pct) {
+             return `<span class="${getPctColorClass(pct)} font-bold">${(pct > 0 ? '+' : '')}${pct.toFixed(2)}%</span>`;
+        }
+
+        function updateIndexCard(idPrefix, data) {
+            $(`#${idPrefix}-actual`).html(getPctString(data.actual_move));
+            $(`#${idPrefix}-implied`).html(getPctString(data.implied_move));
+
+            const divElement = $(`#${idPrefix}-divergence`);
+            const badgeElement = $(`#${idPrefix}-divergence-badge`);
+
+            divElement.html(getPctString(data.divergence));
+
+            if (data.divergence > 0.15) {
+                // Index is stronger than implied by heavies (Small caps rallying or manipulation)
+                badgeElement.text("Index Outperforming").attr('class', 'px-2 py-1 text-xs font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30');
+            } else if (data.divergence < -0.15) {
+                // Index is weaker than implied by heavies (Heavies holding it up, broader market weak)
+                badgeElement.text("Index Underperforming").attr('class', 'px-2 py-1 text-xs font-bold rounded bg-rose-500/20 text-rose-400 border border-rose-500/30');
+            } else {
+                badgeElement.text("In Sync").attr('class', 'px-2 py-1 text-xs font-bold rounded bg-slate-700 text-slate-300 border border-slate-600');
+            }
+        }
+
+        function fetchData() {
+            // Reset UI and State
+            $('#loading-state').show();
+            $('#error-state').hide();
+            $('#table-container').hide();
+            $('#index-summaries').hide();
+            $('#refresh-btn').prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
+
+            if (dataTable) {
+                dataTable.destroy();
+            }
+            $('#table-body').empty();
+
+            $.ajax({
+                url: '/api/index-weightage/analyze',
+                method: 'GET',
+                success: function(response) {
+                    if (response.status === 'success') {
+                        const data = response.data;
+
+                        // Update NIFTY and BANKNIFTY cards
+                        if(data.indices['NIFTY 50']) updateIndexCard('nifty', data.indices['NIFTY 50']);
+                        if(data.indices['NIFTY BANK']) updateIndexCard('bank', data.indices['NIFTY BANK']);
+
+                        // Populate Table
+                        const tbody = $('#table-body');
+                        data.constituents.forEach(item => {
+                             const contribution = (item.weight / 100) * item.pct_change;
+
+                             let indexBadge = '';
+                             if (item.index === 'NIFTY 50') indexBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">NIFTY 50</span>';
+                             else if (item.index === 'NIFTY BANK') indexBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">NIFTY BANK</span>';
+
+                             const pctStrClean = (item.pct_change > 0 ? '+' : '') + item.pct_change.toFixed(2) + '%';
+                             const saveBtn = `<button onclick="window.addToWatchlist('${item.stock} (${item.index})', '${formatCurrency(item.ltp)}', 'Index Weightage', '% Change', '${pctStrClean}')" class="p-1 text-slate-400 hover:text-sky-400 hover:bg-sky-500/20 rounded transition-colors" title="Save to Watchlist"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg></button>`;
+
+                             const tr = `
+                                <tr class="border-b border-slate-700/50 hover:bg-slate-800/50 transition-colors">
+                                    <td class="px-4 py-3">${indexBadge}</td>
+                                    <td class="px-4 py-3 font-medium text-white">${item.stock}</td>
+                                    <td class="px-4 py-3 text-sky-300 font-semibold">${item.weight.toFixed(2)}%</td>
+                                    <td class="px-4 py-3">₹${formatCurrency(item.ltp)}</td>
+                                    <td class="px-4 py-3">${getPctString(item.pct_change)}</td>
+                                    <td class="px-4 py-3">${getPctString(contribution)}</td>
+                                    <td class="px-4 py-3 text-center">${saveBtn}</td>
+                                </tr>
+                             `;
+                             tbody.append(tr);
+                        });
+
+                        dataTable = $('#weightage-table').DataTable({
+                            responsive: true,
+                            pageLength: 25,
+                            order: [[0, 'desc'], [2, 'desc']], // Group by Index, then by Weight
+                            language: {
+                                search: "Search Stock:",
+                                lengthMenu: "Show _MENU_ entries"
+                            },
+                            columnDefs: [
+                                { orderable: false, targets: [6] }
+                            ]
+                        });
+
+                        $('#loading-state').hide();
+                        $('#index-summaries').removeClass('hidden').fadeIn();
+                        $('#table-container').removeClass('hidden').fadeIn();
+
+                    } else {
+                        showError(response.message);
+                    }
+                },
+                error: function(xhr) {
+                    let msg = "An unknown error occurred.";
+                    if(xhr.responseJSON && xhr.responseJSON.message) {
+                        msg = xhr.responseJSON.message;
+                    }
+                    showError(msg);
+                },
+                complete: function() {
+                    $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
+                }
+            });
+        }
+
+        function showError(msg) {
+            $('#loading-state').hide();
+            $('#error-message').text(msg);
+            $('#error-state').removeClass('hidden').show();
+        }
+
+        // Initial fetch
+        fetchData();
+
+        // Refresh click
+        $('#refresh-btn').on('click', function() {
+            fetchData();
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Paper Trading - Algo Dashboard{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-white mb-2">Paper Trading Simulator</h1>
+    <p class="text-slate-400">Practice your strategies in a risk-free environment. Choose a trading mode to begin.</p>
+</div>
+
+<!-- Tabs -->
+<div class="flex space-x-4 mb-6 border-b border-slate-700">
+    <button id="tab-options" onclick="switchTab('options')" class="px-4 py-2 font-medium text-sm focus:outline-none text-blue-400 border-b-2 border-blue-400">
+        Options Trading
+    </button>
+    <button id="tab-swing" onclick="switchTab('swing')" class="px-4 py-2 font-medium text-sm focus:outline-none text-slate-400 border-b-2 border-transparent hover:text-slate-300">
+        Swing Trading
+    </button>
+</div>
+
+<!-- Options Trading Panel -->
+<div id="panel-options" class="space-y-6">
+    <div class="glass-panel p-6 rounded-2xl border border-slate-700/50 shadow-lg relative overflow-hidden">
+        <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+        <h2 class="text-xl font-bold text-white mb-4">Options Order Entry</h2>
+        <form class="grid grid-cols-1 md:grid-cols-4 gap-4" onsubmit="event.preventDefault(); showToast('Options order placed (Simulated)', 'success');">
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Underlying / Expiry</label>
+                <input type="text" placeholder="e.g., NIFTY 25MAY" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Strike & Type</label>
+                <input type="text" placeholder="e.g., 22000 CE" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Quantity (Lots)</label>
+                <input type="number" placeholder="1" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    Place Order
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Active Options Positions -->
+    <div class="glass-panel rounded-2xl overflow-hidden border border-slate-700/50">
+        <div class="p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/30">
+            <h3 class="text-lg font-bold text-white">Active Options Positions</h3>
+        </div>
+        <div class="p-8 text-center">
+            <svg class="mx-auto h-12 w-12 text-slate-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-slate-400">No active options positions.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Swing Trading Panel -->
+<div id="panel-swing" class="space-y-6 hidden">
+    <div class="glass-panel p-6 rounded-2xl border border-slate-700/50 shadow-lg relative overflow-hidden">
+        <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+        <h2 class="text-xl font-bold text-white mb-4">Swing Trade Entry</h2>
+        <form class="grid grid-cols-1 md:grid-cols-4 gap-4" onsubmit="event.preventDefault(); showToast('Swing trade order placed (Simulated)', 'success');">
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Stock Symbol</label>
+                <input type="text" placeholder="e.g., RELIANCE" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Entry Price</label>
+                <input type="number" placeholder="Market or Limit" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Quantity</label>
+                <input type="number" placeholder="10" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    Place Order
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Active Swing Positions -->
+    <div class="glass-panel rounded-2xl overflow-hidden border border-slate-700/50">
+        <div class="p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/30">
+            <h3 class="text-lg font-bold text-white">Active Swing Positions</h3>
+        </div>
+        <div class="p-8 text-center">
+            <svg class="mx-auto h-12 w-12 text-slate-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-slate-400">No active swing positions.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    function switchTab(tab) {
+        const tabOptions = document.getElementById('tab-options');
+        const tabSwing = document.getElementById('tab-swing');
+        const panelOptions = document.getElementById('panel-options');
+        const panelSwing = document.getElementById('panel-swing');
+
+        if (tab === 'options') {
+            tabOptions.classList.add('text-blue-400', 'border-blue-400');
+            tabOptions.classList.remove('text-slate-400', 'border-transparent');
+            tabSwing.classList.remove('text-blue-400', 'border-blue-400');
+            tabSwing.classList.add('text-slate-400', 'border-transparent');
+
+            panelOptions.classList.remove('hidden');
+            panelSwing.classList.add('hidden');
+        } else {
+            tabSwing.classList.add('text-blue-400', 'border-blue-400');
+            tabSwing.classList.remove('text-slate-400', 'border-transparent');
+            tabOptions.classList.remove('text-blue-400', 'border-blue-400');
+            tabOptions.classList.add('text-slate-400', 'border-transparent');
+
+            panelSwing.classList.remove('hidden');
+            panelOptions.classList.add('hidden');
+        }
+    }
+</script>
+{% endblock %}

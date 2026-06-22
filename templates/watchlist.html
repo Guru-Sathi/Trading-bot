@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}My Watchlist{% endblock %}
+
+{% block extra_head %}
+<!-- DataTables CSS for modern look -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<style>
+    /* Customizing DataTables to fit the dark theme */
+    .dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_filter, .dataTables_wrapper .dataTables_info, .dataTables_wrapper .dataTables_processing, .dataTables_wrapper .dataTables_paginate {
+        color: #94a3b8; /* slate-400 */
+        margin-bottom: 1rem;
+    }
+    .dataTables_wrapper .dataTables_filter input {
+        background-color: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 0.375rem;
+        color: #f8fafc;
+        padding: 0.25rem 0.75rem;
+        margin-left: 0.5rem;
+    }
+    table.dataTable.no-footer {
+        border-bottom: 1px solid #334155;
+    }
+    table.dataTable tbody tr {
+        background-color: transparent;
+    }
+    table.dataTable tbody tr.odd {
+        background-color: rgba(30, 41, 59, 0.3);
+    }
+    table.dataTable tbody tr:hover {
+        background-color: rgba(16, 185, 129, 0.1); /* emerald hover */
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+        color: #94a3b8 !important;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+        color: #fff !important;
+        background: #10b981 !important;
+        border: 1px solid #10b981 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="px-4 py-8 sm:px-0">
+
+    <!-- Header -->
+    <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+                <div class="p-2 bg-emerald-500/20 rounded-lg">
+                    <svg class="h-6 w-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                </div>
+                My Watchlist
+            </h1>
+            <p class="text-slate-400 mt-2">Saved opportunities across all strategies.</p>
+        </div>
+        <div>
+            <button onclick="clearAllWatchlist()" class="inline-flex items-center justify-center px-4 py-2 border border-rose-500/50 text-sm font-medium rounded-md text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 focus:ring-offset-slate-900">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                Clear All
+            </button>
+        </div>
+    </div>
+
+    <!-- Data Section -->
+    <div class="glass-panel rounded-2xl shadow-xl p-1 sm:p-4">
+        <div class="overflow-x-auto w-full p-2">
+            <table id="watchlist-table" class="w-full text-left text-sm text-slate-300">
+                <thead class="text-xs text-slate-400 uppercase bg-slate-800/50">
+                    <tr>
+                        <th class="px-4 py-3 rounded-tl-lg border-b border-slate-700">Stock / Pair</th>
+                        <th class="px-4 py-3 border-b border-slate-700">Entry LTP</th>
+                        <th class="px-4 py-3 border-b border-slate-700">Source Strategy</th>
+                        <th class="px-4 py-3 border-b border-slate-700">Key Metric</th>
+                        <th class="px-4 py-3 border-b border-slate-700">Date Added</th>
+                        <th class="px-4 py-3 rounded-tr-lg border-b border-slate-700 text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Rows populated by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script>
+    let dataTable;
+
+    function renderTable() {
+        const watchlist = window.getWatchlist();
+
+        if (dataTable) {
+            dataTable.destroy();
+        }
+
+        const tbody = $('#table-body');
+        tbody.empty();
+
+        watchlist.forEach(item => {
+            const tr = `
+                <tr class="border-b border-slate-700/50 hover:bg-slate-800/50 transition-colors" id="row-${item.id}">
+                    <td class="px-4 py-3 font-medium text-white">${item.stock}</td>
+                    <td class="px-4 py-3">₹${item.ltp}</td>
+                    <td class="px-4 py-3"><span class="px-2 py-1 bg-slate-700 rounded text-xs text-slate-300 border border-slate-600">${item.strategy}</span></td>
+                    <td class="px-4 py-3"><span class="text-xs text-slate-400">${item.metricLabel}:</span> <span class="font-semibold text-emerald-400">${item.metricValue}</span></td>
+                    <td class="px-4 py-3 text-slate-400 text-xs">${item.dateAdded}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="removeRow('${item.id}')" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/20 rounded transition-colors" title="Remove">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tbody.append(tr);
+        });
+
+        dataTable = $('#watchlist-table').DataTable({
+            responsive: true,
+            pageLength: 25,
+            order: [[4, 'desc']], // Sort by newest added by default
+            language: {
+                search: "Filter Saved Items:",
+                emptyTable: "Your watchlist is empty. Go to a strategy page and save some opportunities!"
+            },
+            columnDefs: [
+                { orderable: false, targets: [5] } // Disable sorting on action column
+            ]
+        });
+    }
+
+    // Global wrapper for the delete button to update table dynamically
+    window.removeRow = function(id) {
+        window.removeFromWatchlist(id);
+        renderTable(); // Re-render table after deletion
+    };
+
+    window.clearAllWatchlist = function() {
+        if(confirm("Are you sure you want to clear your entire watchlist?")) {
+            localStorage.setItem(window.WATCHLIST_KEY, JSON.stringify([]));
+            renderTable();
+            window.showToast("Watchlist cleared.", "success");
+        }
+    };
+
+    $(document).ready(function() {
+        renderTable();
+    });
+</script>
+{% endblock %}
