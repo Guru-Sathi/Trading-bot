@@ -15,6 +15,11 @@ class PaperTradingBot:
         self.state = self.load_state()
         self.running = False
         self.thread = None
+        self.current_action = "Idle"
+
+    def _set_action(self, action):
+        self.current_action = action
+        print(f"[Bot] {action}")
 
     def load_state(self):
         if os.path.exists(STATE_FILE):
@@ -71,6 +76,7 @@ class PaperTradingBot:
 
         return {
             "running": self.running,
+            "current_action": self.current_action if self.running else "Idle",
             "balance": self.state["balance"],
             "mtm": mtm,
             "total_value": self.state["balance"] + mtm,
@@ -112,21 +118,25 @@ class PaperTradingBot:
             return {}
 
     def _run_loop(self):
-        print("Bot started.")
+        self._set_action("Bot started. Initializing...")
         while self.running:
             try:
                 # 1. Manage existing positions
-                self._manage_positions()
+                if len(self.state["active_positions"]) > 0:
+                    self._set_action("Fetching live prices to manage active positions...")
+                    self._manage_positions()
 
                 # 2. Look for new entry if no active positions (to keep it simple, 1 trade at a time)
                 if len(self.state["active_positions"]) == 0:
                     self._scan_for_entry()
 
             except Exception as e:
-                print(f"Bot error: {e}")
+                self._set_action(f"Error encountered: {e}")
 
             # Sleep to avoid hitting API too hard
-            time.sleep(30)
+            if self.running:
+                self._set_action("Sleeping for 30s before next scan...")
+                time.sleep(30)
 
     def _manage_positions(self):
         if not self.state["active_positions"]:
@@ -185,12 +195,14 @@ class PaperTradingBot:
 
     def _scan_for_entry(self):
         if not self.ingestor.auth_token:
+            self._set_action("Error: Not authenticated with Angel One API.")
             return
 
-        print("Scanning for new entry...")
+        self._set_action("Downloading and analyzing NIFTY Options Chain...")
         # Deep analysis of NIFTY OI Chain
         try:
             data = self.ingestor.analyze_nifty_oi_chain()
+            self._set_action("Evaluating Smart Money signals...")
 
             # Look for strong signals
             buy_ce = False
@@ -240,6 +252,7 @@ class PaperTradingBot:
             cost = ltp * qty
 
             if self.state["balance"] >= cost:
+                self._set_action(f"Executing Buy Order for {qty} qty of {symbol} at ₹{ltp}...")
                 import uuid
                 self.state["balance"] -= cost
                 new_pos = {
@@ -255,8 +268,10 @@ class PaperTradingBot:
                 self.state["active_positions"].append(new_pos)
                 self.save_state()
                 print(f"Opened {opt_type} position: {symbol} at {ltp}")
+            else:
+                 self._set_action("Signal found, but insufficient balance to trade.")
 
         except Exception as e:
-            print(f"Scan error: {e}")
+            self._set_action(f"Scan error: {e}")
 
 bot_instance = PaperTradingBot()
