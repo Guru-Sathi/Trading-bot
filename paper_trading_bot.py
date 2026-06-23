@@ -22,7 +22,7 @@ class PaperTradingBot:
                 return json.load(f)
         return {
             "balance": INITIAL_BALANCE,
-            "active_positions": [], # [{ "symbol", "token", "entry_price", "qty", "entry_time", "type" }]
+            "active_positions": [], # [{ "id", "symbol", "token", "entry_price", "qty", "entry_time", "type", "ltp_history": [] }]
             "trade_history": []
         }
 
@@ -57,8 +57,17 @@ class PaperTradingBot:
                  p_copy["ltp"] = ltp
                  pnl = (ltp - p["entry_price"]) * p["qty"]
                  p_copy["unrealized_pnl"] = pnl
+                 # Don't send full history in polling
+                 p_copy.pop("ltp_history", None)
                  mtm += pnl
                  positions_with_ltp.append(p_copy)
+
+        # Clean history for polling (remove big arrays)
+        clean_history = []
+        for h in self.state["trade_history"][-50:]:
+            h_copy = dict(h)
+            h_copy.pop("ltp_history", None)
+            clean_history.append(h_copy)
 
         return {
             "running": self.running,
@@ -66,8 +75,19 @@ class PaperTradingBot:
             "mtm": mtm,
             "total_value": self.state["balance"] + mtm,
             "active_positions": positions_with_ltp,
-            "trade_history": self.state["trade_history"][-50:] # last 50
+            "trade_history": clean_history
         }
+
+    def get_trade_details(self, trade_id):
+        # Search in active positions
+        for p in self.state["active_positions"]:
+            if p.get("id") == trade_id:
+                return p
+        # Search in history
+        for h in self.state["trade_history"]:
+            if h.get("id") == trade_id:
+                return h
+        return None
 
     def _fetch_ltps(self, tokens):
         # Fetch LTP for given NFO tokens
@@ -116,10 +136,19 @@ class PaperTradingBot:
         ltps = self._fetch_ltps(tokens)
 
         to_remove = []
+        state_changed = False
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         for p in self.state["active_positions"]:
             ltp = ltps.get(p["token"])
             if not ltp:
                 continue
+
+            # Store the tick in history
+            if "ltp_history" not in p:
+                p["ltp_history"] = []
+            p["ltp_history"].append({"time": current_time, "ltp": ltp})
+            state_changed = True
 
             entry = p["entry_price"]
             # Simple Target: 10%, Stop Loss: 5%
@@ -132,15 +161,17 @@ class PaperTradingBot:
                 self.state["balance"] += (entry * p["qty"]) + profit # Return capital + profit
 
                 history_record = {
+                    "id": p.get("id"),
                     "symbol": p["symbol"],
                     "type": p["type"],
                     "qty": p["qty"],
                     "entry_time": p["entry_time"],
                     "entry_price": entry,
-                    "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "exit_time": current_time,
                     "exit_price": ltp,
                     "pnl": profit,
-                    "reason": "Target Hit" if ltp >= target else "Stop Loss Hit"
+                    "reason": "Target Hit" if ltp >= target else "Stop Loss Hit",
+                    "ltp_history": p["ltp_history"]
                 }
                 self.state["trade_history"].append(history_record)
                 to_remove.append(p)
@@ -149,7 +180,7 @@ class PaperTradingBot:
         for p in to_remove:
             self.state["active_positions"].remove(p)
 
-        if to_remove:
+        if state_changed or to_remove:
             self.save_state()
 
     def _scan_for_entry(self):
@@ -204,19 +235,22 @@ class PaperTradingBot:
             ltp = ltps[token]
             if ltp <= 0: return
 
-            # Buy 1 lot (Nifty lot size is 25)
-            qty = 25
+            # Buy 1 lot (Nifty lot size is 65)
+            qty = 65
             cost = ltp * qty
 
             if self.state["balance"] >= cost:
+                import uuid
                 self.state["balance"] -= cost
                 new_pos = {
+                    "id": str(uuid.uuid4()),
                     "symbol": symbol,
                     "token": token,
                     "entry_price": ltp,
                     "qty": qty,
                     "entry_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "type": opt_type
+                    "type": opt_type,
+                    "ltp_history": [{"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "ltp": ltp}]
                 }
                 self.state["active_positions"].append(new_pos)
                 self.save_state()

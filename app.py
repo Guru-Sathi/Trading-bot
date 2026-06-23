@@ -52,6 +52,13 @@ def api_bot_status():
     status = bot_instance.get_status()
     return jsonify({"status": "success", "data": status})
 
+@app.route('/api/bot/trade/<trade_id>')
+def api_bot_trade_details(trade_id):
+    details = bot_instance.get_trade_details(trade_id)
+    if details:
+        return jsonify({"status": "success", "data": details})
+    return jsonify({"status": "error", "message": "Trade not found"}), 404
+
 @app.route('/strategy/momentum')
 def momentum():
     return render_template('momentum.html')
