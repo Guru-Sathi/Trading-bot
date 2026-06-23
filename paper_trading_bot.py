@@ -123,7 +123,6 @@ class PaperTradingBot:
             try:
                 # 1. Manage existing positions
                 if len(self.state["active_positions"]) > 0:
-                    self._set_action("Fetching live prices to manage active positions...")
                     self._manage_positions()
 
                 # 2. Look for new entry if no active positions (to keep it simple, 1 trade at a time)
@@ -135,7 +134,8 @@ class PaperTradingBot:
 
             # Sleep to avoid hitting API too hard
             if self.running:
-                self._set_action("Sleeping for 30s before next scan...")
+                # We intentionally do not overwrite the current action here,
+                # so the detailed market status remains visible on the UI while sleeping.
                 time.sleep(30)
 
     def _manage_positions(self):
@@ -148,6 +148,7 @@ class PaperTradingBot:
         to_remove = []
         state_changed = False
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        action_messages = []
 
         for p in self.state["active_positions"]:
             ltp = ltps.get(p["token"])
@@ -164,6 +165,9 @@ class PaperTradingBot:
             # Simple Target: 10%, Stop Loss: 5%
             target = entry * 1.10
             sl = entry * 0.95
+
+            pnl = (ltp - entry) * p["qty"]
+            action_messages.append(f"Monitoring {p['symbol']} | LTP: {ltp} | Target: {target:.2f} | SL: {sl:.2f} | Current PnL: {pnl:.2f}")
 
             if ltp >= target or ltp <= sl:
                 # Close position
@@ -187,6 +191,9 @@ class PaperTradingBot:
                 to_remove.append(p)
                 print(f"Closed {p['symbol']} at {ltp}. PnL: {profit}")
 
+        if action_messages and len(to_remove) == 0:
+             self._set_action(" | ".join(action_messages))
+
         for p in to_remove:
             self.state["active_positions"].remove(p)
 
@@ -198,27 +205,31 @@ class PaperTradingBot:
             self._set_action("Error: Not authenticated with Angel One API.")
             return
 
-        self._set_action("Downloading and analyzing NIFTY Options Chain...")
         # Deep analysis of NIFTY OI Chain
         try:
             data = self.ingestor.analyze_nifty_oi_chain()
-            self._set_action("Evaluating Smart Money signals...")
 
             # Look for strong signals
             buy_ce = False
             buy_pe = False
             target_strike = None
 
+            sentiment_str = data.get("sentiment", "")
+
             # For paper trading simulation, let's use the extreme signals or strong divergence
-            if "🔥" in data.get("sentiment", "") or "Bullish Breakout" in data.get("sentiment", ""):
+            if "🔥" in sentiment_str or "Bullish Breakout" in sentiment_str:
                 buy_ce = True
                 target_strike = data["atm_strike"] # Buy ATM
-            elif "⚠️" in data.get("sentiment", "") or "Bearish Breakdown" in data.get("sentiment", ""):
+            elif "⚠️" in sentiment_str or "Bearish Breakdown" in sentiment_str:
                 buy_pe = True
                 target_strike = data["atm_strike"]
 
             if not buy_ce and not buy_pe:
-                return
+                 spot = data.get('spot_price', 0)
+                 pcr = data.get('overall_oi_pcr', 0)
+                 clean_sentiment = sentiment_str.replace("✅", "").replace("⚠️", "").replace("🔥", "").replace("❌", "").strip()
+                 self._set_action(f"No entry signals. NIFTY Spot: {spot:.2f} | OI PCR: {pcr:.2f} | Market Context: {clean_sentiment}")
+                 return
 
             # Find the token for the target option
             # We need to re-fetch the chain mappings to find the specific token
