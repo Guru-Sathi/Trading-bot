@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+
+{% block title %}Paper Trading - Algo Dashboard{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-white mb-2">Paper Trading Simulator</h1>
+    <p class="text-slate-400">Automated paper trading based on algorithmic signals. Choose a mode below.</p>
+</div>
+
+<!-- Tabs -->
+<div class="flex space-x-4 mb-6 border-b border-slate-700">
+    <button id="tab-options" onclick="switchTab('options')" class="px-4 py-2 font-medium text-sm focus:outline-none text-blue-400 border-b-2 border-blue-400">
+        Options Auto-Bot (NIFTY)
+    </button>
+    <button id="tab-swing" onclick="switchTab('swing')" class="px-4 py-2 font-medium text-sm focus:outline-none text-slate-400 border-b-2 border-transparent hover:text-slate-300">
+        Manual Swing Trading
+    </button>
+</div>
+
+<!-- Options Trading Panel -->
+<div id="panel-options" class="space-y-6">
+    <!-- Bot Control Dashboard -->
+    <div class="glass-panel p-6 rounded-2xl border border-slate-700/50 shadow-lg relative overflow-hidden">
+        <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+        <div class="flex justify-between items-start md:items-center mb-6 flex-col md:flex-row gap-4">
+            <div>
+                <h2 class="text-xl font-bold text-white flex items-center gap-2 mb-2">
+                    NIFTY Options Auto-Trader
+                    <span id="bot-status-badge" class="px-2 py-1 text-xs rounded-full bg-slate-500/20 text-slate-400 border border-slate-500/30">Stopped</span>
+                </h2>
+
+                <!-- Live Activity Feed -->
+                <div class="flex items-center gap-3 bg-slate-800/50 px-4 py-2 rounded-lg border border-slate-700 max-w-2xl mt-2">
+                    <div class="flex-shrink-0">
+                        <span class="relative flex h-3 w-3">
+                          <span id="pulse-ring" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75 hidden"></span>
+                          <span id="pulse-dot" class="relative inline-flex rounded-full h-3 w-3 bg-slate-500"></span>
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-300 font-mono tracking-wide leading-relaxed" id="bot-activity-text">Bot is idle. Click start to begin.</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-start-bot" class="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/50 font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Start Bot
+                </button>
+                <button id="btn-stop-bot" class="bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/50 font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 hidden">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10h6v4H9z"></path></svg>
+                    Stop Bot
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <p class="text-slate-400 text-sm mb-1">Available Balance</p>
+                <p id="stat-balance" class="text-2xl font-bold text-white">₹--</p>
+            </div>
+            <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <p class="text-slate-400 text-sm mb-1">Unrealized P&L</p>
+                <p id="stat-mtm" class="text-2xl font-bold text-slate-300">₹--</p>
+            </div>
+            <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <p class="text-slate-400 text-sm mb-1">Total Portfolio Value</p>
+                <p id="stat-total" class="text-2xl font-bold text-blue-400">₹--</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Options Positions -->
+    <div class="glass-panel rounded-2xl overflow-hidden border border-slate-700/50">
+        <div class="p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/30">
+            <h3 class="text-lg font-bold text-white">Active Positions</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-300">
+                <thead class="text-xs text-slate-400 uppercase bg-slate-800/50">
+                    <tr>
+                        <th class="px-6 py-3">Symbol</th>
+                        <th class="px-6 py-3">Type</th>
+                        <th class="px-6 py-3">Qty</th>
+                        <th class="px-6 py-3">Entry Price</th>
+                        <th class="px-6 py-3">LTP</th>
+                        <th class="px-6 py-3 text-right">P&L</th>
+                    </tr>
+                </thead>
+                <tbody id="active-positions-body">
+                    <!-- Dynamic -->
+                </tbody>
+            </table>
+            <div id="no-positions" class="p-8 text-center hidden">
+                <p class="text-slate-400">No active positions. Bot is scanning for opportunities.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trade History -->
+    <div class="glass-panel rounded-2xl overflow-hidden border border-slate-700/50">
+        <div class="p-6 border-b border-slate-700/50 bg-slate-800/30">
+            <h3 class="text-lg font-bold text-white">Trade History</h3>
+        </div>
+        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+            <table class="w-full text-left text-sm text-slate-300">
+                <thead class="text-xs text-slate-400 uppercase bg-slate-800/50 sticky top-0">
+                    <tr>
+                        <th class="px-6 py-3">Symbol</th>
+                        <th class="px-6 py-3">Entry Time</th>
+                        <th class="px-6 py-3">Exit Time</th>
+                        <th class="px-6 py-3">Entry Price</th>
+                        <th class="px-6 py-3">Exit Price</th>
+                        <th class="px-6 py-3 text-right">Realized P&L</th>
+                    </tr>
+                </thead>
+                <tbody id="trade-history-body">
+                    <!-- Dynamic -->
+                </tbody>
+            </table>
+            <div id="no-history" class="p-8 text-center hidden">
+                <p class="text-slate-400">No completed trades yet.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Trade Details Modal -->
+<div id="trade-details-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden bg-black/60 backdrop-blur-sm p-4">
+    <div class="glass-panel w-full max-w-4xl rounded-2xl border border-slate-700/50 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+
+        <div class="p-6 border-b border-slate-700/50 flex justify-between items-start bg-slate-800/80">
+            <div>
+                <h3 class="text-xl font-bold text-white mb-1" id="modal-title">Trade Details</h3>
+                <p class="text-sm text-slate-400" id="modal-subtitle">Loading...</p>
+            </div>
+            <button onclick="closeTradeDetails()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-700/50 transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto flex-grow">
+            <!-- Stats Row -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="modal-stats">
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- Chart Container -->
+            <div class="w-full h-[400px] bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
+                <canvas id="ltpChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Swing Trading Panel (Manual) -->
+<div id="panel-swing" class="space-y-6 hidden">
+    <div class="glass-panel p-6 rounded-2xl border border-slate-700/50 shadow-lg relative overflow-hidden">
+        <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+        <h2 class="text-xl font-bold text-white mb-4">Manual Swing Trade Entry</h2>
+        <form class="grid grid-cols-1 md:grid-cols-4 gap-4" onsubmit="event.preventDefault(); showToast('Swing trade order placed (Simulated)', 'success');">
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Stock Symbol</label>
+                <input type="text" placeholder="e.g., RELIANCE" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Entry Price</label>
+                <input type="number" placeholder="Market or Limit" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Quantity</label>
+                <input type="number" placeholder="10" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    Place Order
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Active Swing Positions -->
+    <div class="glass-panel rounded-2xl overflow-hidden border border-slate-700/50">
+        <div class="p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/30">
+            <h3 class="text-lg font-bold text-white">Active Swing Positions</h3>
+        </div>
+        <div class="p-8 text-center">
+            <svg class="mx-auto h-12 w-12 text-slate-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-slate-400">No manual active positions.</p>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let tradeChart = null;
+
+    function closeTradeDetails() {
+        $('#trade-details-modal').addClass('hidden');
+        if (tradeChart) {
+            tradeChart.destroy();
+            tradeChart = null;
+        }
+    }
+
+    function openTradeDetails(tradeId) {
+        if (!tradeId) return;
+
+        $('#trade-details-modal').removeClass('hidden');
+        $('#modal-title').text('Loading Trade Data...');
+        $('#modal-subtitle').text('');
+        $('#modal-stats').empty();
+        if (tradeChart) {
+            tradeChart.destroy();
+            tradeChart = null;
+        }
+
+        $.get(`/api/bot/trade/${tradeId}`, function(res) {
+            if (res.status === 'success') {
+                renderTradeModal(res.data);
+            } else {
+                showToast(res.message, 'error');
+                closeTradeDetails();
+            }
+        }).fail(function() {
+            showToast('Failed to fetch trade details', 'error');
+            closeTradeDetails();
+        });
+    }
+
+    function renderTradeModal(data) {
+        $('#modal-title').text(data.symbol);
+
+        let statusBadge = '';
+        if (data.exit_time) {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold ${data.pnl >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'} border border-current opacity-80 ml-2">Closed: ${data.reason}</span>`;
+        } else {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 ml-2">Active</span>`;
+        }
+
+        $('#modal-subtitle').html(`Qty: ${data.qty} | Type: <span class="text-sky-400 font-bold">${data.type}</span> ${statusBadge}`);
+
+        // Calculate stats
+        let maxLtp = -Infinity;
+        let minLtp = Infinity;
+        let labels = [];
+        let dataPoints = [];
+
+        if (data.ltp_history && data.ltp_history.length > 0) {
+            data.ltp_history.forEach(h => {
+                labels.push(h.time.split(' ')[1]); // Only time
+                dataPoints.push(h.ltp);
+                if (h.ltp > maxLtp) maxLtp = h.ltp;
+                if (h.ltp < minLtp) minLtp = h.ltp;
+            });
+        }
+
+        const maxProfitStr = maxLtp !== -Infinity ? `₹${formatCurrency((maxLtp - data.entry_price) * data.qty)}` : 'N/A';
+        const maxDrawdownStr = minLtp !== Infinity ? `₹${formatCurrency((minLtp - data.entry_price) * data.qty)}` : 'N/A';
+        const currentOrFinalPnl = data.exit_price ? data.pnl : (data.ltp_history && data.ltp_history.length > 0 ? (data.ltp_history[data.ltp_history.length-1].ltp - data.entry_price) * data.qty : 0);
+
+        const pnlColorClass = currentOrFinalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400';
+        const pnlSign = currentOrFinalPnl >= 0 ? '+' : '';
+
+        $('#modal-stats').html(`
+            <div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                <p class="text-slate-500 text-xs mb-1">Entry Price</p>
+                <p class="text-white font-medium">₹${formatCurrency(data.entry_price)}</p>
+            </div>
+            <div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                <p class="text-slate-500 text-xs mb-1">${data.exit_price ? 'Exit Price' : 'Current LTP'}</p>
+                <p class="text-white font-medium">₹${data.exit_price ? formatCurrency(data.exit_price) : (dataPoints.length ? formatCurrency(dataPoints[dataPoints.length-1]) : '--')}</p>
+            </div>
+            <div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                <p class="text-slate-500 text-xs mb-1">Max Profit / Max Drawdown</p>
+                <p class="text-sm font-medium"><span class="text-emerald-400">${maxProfitStr}</span> <span class="text-slate-500">/</span> <span class="text-rose-400">${maxDrawdownStr}</span></p>
+            </div>
+            <div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                <p class="text-slate-500 text-xs mb-1">${data.exit_price ? 'Realized P&L' : 'Unrealized P&L'}</p>
+                <p class="text-lg font-bold ${pnlColorClass}">${pnlSign}₹${formatCurrency(Math.abs(currentOrFinalPnl))}</p>
+            </div>
+        `);
+
+        // Render Chart
+        const ctx = document.getElementById('ltpChart').getContext('2d');
+
+        const targetPrice = data.entry_price * 1.10;
+        const slPrice = data.entry_price * 0.95;
+
+        // Custom plugin to draw horizontal lines
+        const horizontalLinePlugin = {
+            id: 'horizontalLines',
+            beforeDraw(chart) {
+                const { ctx, chartArea: { top, bottom, left, right }, scales: { y } } = chart;
+
+                function drawLine(yValue, color, label) {
+                    const yPos = y.getPixelForValue(yValue);
+                    if (yPos < top || yPos > bottom) return;
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.setLineDash([5, 5]);
+                    ctx.moveTo(left, yPos);
+                    ctx.lineTo(right, yPos);
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = color;
+                    ctx.stroke();
+
+                    ctx.fillStyle = color;
+                    ctx.font = '10px Inter';
+                    ctx.fillText(label, left + 5, yPos - 5);
+                    ctx.restore();
+                }
+
+                drawLine(data.entry_price, '#94a3b8', 'Entry'); // Slate 400
+                drawLine(targetPrice, '#10b981', 'Target (+10%)'); // Emerald 500
+                drawLine(slPrice, '#f43f5e', 'Stop Loss (-5%)'); // Rose 500
+            }
+        };
+
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = 'Inter';
+
+        tradeChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'LTP (₹)',
+                    data: dataPoints,
+                    borderColor: '#3b82f6', // Blue 500
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHitRadius: 10,
+                    pointHoverRadius: 4,
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index',
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        titleColor: '#f8fafc',
+                        bodyColor: '#f8fafc',
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(context) {
+                                return `LTP: ₹${formatCurrency(context.parsed.y)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                        ticks: { maxTicksLimit: 10 }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                        // Ensure y-axis covers the target and SL lines
+                        suggestedMax: targetPrice * 1.02,
+                        suggestedMin: slPrice * 0.98
+                    }
+                }
+            },
+            plugins: [horizontalLinePlugin]
+        });
+    }
+
+    // Global format currency for both modal and dashboard
+    function formatCurrency(val) {
+        return parseFloat(val).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+    }
+
+    function switchTab(tab) {
+        const tabOptions = document.getElementById('tab-options');
+        const tabSwing = document.getElementById('tab-swing');
+        const panelOptions = document.getElementById('panel-options');
+        const panelSwing = document.getElementById('panel-swing');
+
+        if (tab === 'options') {
+            tabOptions.classList.add('text-blue-400', 'border-blue-400');
+            tabOptions.classList.remove('text-slate-400', 'border-transparent');
+            tabSwing.classList.remove('text-blue-400', 'border-blue-400');
+            tabSwing.classList.add('text-slate-400', 'border-transparent');
+
+            panelOptions.classList.remove('hidden');
+            panelSwing.classList.add('hidden');
+        } else {
+            tabSwing.classList.add('text-blue-400', 'border-blue-400');
+            tabSwing.classList.remove('text-slate-400', 'border-transparent');
+            tabOptions.classList.remove('text-blue-400', 'border-blue-400');
+            tabOptions.classList.add('text-slate-400', 'border-transparent');
+
+            panelSwing.classList.remove('hidden');
+            panelOptions.classList.add('hidden');
+        }
+    }
+
+    $(document).ready(function() {
+        let pollInterval;
+
+        function formatColor(val) {
+            if (val > 0) return 'text-emerald-400';
+            if (val < 0) return 'text-rose-400';
+            return 'text-slate-300';
+        }
+
+        function updateDashboard(data) {
+            // Update stats
+            $('#stat-balance').text(`₹${formatCurrency(data.balance)}`);
+
+            const mtmStr = `₹${formatCurrency(Math.abs(data.mtm))}`;
+            if (data.mtm >= 0) {
+                $('#stat-mtm').text(`+${mtmStr}`).removeClass('text-rose-400 text-slate-300').addClass('text-emerald-400');
+            } else {
+                $('#stat-mtm').text(`-${mtmStr}`).removeClass('text-emerald-400 text-slate-300').addClass('text-rose-400');
+            }
+
+            $('#stat-total').text(`₹${formatCurrency(data.total_value)}`);
+
+            // Bot Status & Activity Feed
+            if (data.running) {
+                $('#bot-status-badge').text('Running (Auto-Trading)')
+                    .removeClass('bg-slate-500/20 text-slate-400 border-slate-500/30')
+                    .addClass('bg-emerald-500/20 text-emerald-400 border-emerald-500/30');
+                $('#btn-start-bot').addClass('hidden');
+                $('#btn-stop-bot').removeClass('hidden');
+
+                $('#pulse-ring').removeClass('hidden bg-slate-400').addClass('bg-blue-400');
+                $('#pulse-dot').removeClass('bg-slate-500').addClass('bg-blue-500');
+                $('#bot-activity-text').text(data.current_action || 'Working...');
+                $('#bot-activity-text').removeClass('text-slate-500').addClass('text-sky-300');
+            } else {
+                $('#bot-status-badge').text('Stopped')
+                    .removeClass('bg-emerald-500/20 text-emerald-400 border-emerald-500/30')
+                    .addClass('bg-slate-500/20 text-slate-400 border-slate-500/30');
+                $('#btn-start-bot').removeClass('hidden');
+                $('#btn-stop-bot').addClass('hidden');
+
+                $('#pulse-ring').addClass('hidden');
+                $('#pulse-dot').removeClass('bg-blue-500').addClass('bg-slate-500');
+                $('#bot-activity-text').text('Bot is idle. Click start to begin.');
+                $('#bot-activity-text').removeClass('text-sky-300').addClass('text-slate-500');
+            }
+
+            // Update Active Positions
+            const posBody = $('#active-positions-body');
+            posBody.empty();
+            if (data.active_positions.length === 0) {
+                $('#no-positions').removeClass('hidden');
+            } else {
+                $('#no-positions').addClass('hidden');
+                data.active_positions.forEach(p => {
+                    const pnlSign = p.unrealized_pnl >= 0 ? '+' : '-';
+                    const pnlStr = `₹${formatCurrency(Math.abs(p.unrealized_pnl))}`;
+                    const colorClass = formatColor(p.unrealized_pnl);
+
+                    posBody.append(`
+                        <tr class="border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 transition-colors cursor-pointer group" onclick="openTradeDetails('${p.id}')">
+                            <td class="px-6 py-4 font-medium text-white group-hover:text-blue-400 transition-colors">${p.symbol} <span class="text-xs text-slate-500 ml-1">(Click for chart)</span></td>
+                            <td class="px-6 py-4 text-sky-400 font-bold">${p.type}</td>
+                            <td class="px-6 py-4">${p.qty}</td>
+                            <td class="px-6 py-4">₹${formatCurrency(p.entry_price)}</td>
+                            <td class="px-6 py-4">₹${formatCurrency(p.ltp)}</td>
+                            <td class="px-6 py-4 text-right font-bold ${colorClass}">${pnlSign}${pnlStr}</td>
+                        </tr>
+                    `);
+                });
+            }
+
+            // Update History
+            const histBody = $('#trade-history-body');
+            histBody.empty();
+            if (data.trade_history.length === 0) {
+                $('#no-history').removeClass('hidden');
+            } else {
+                $('#no-history').addClass('hidden');
+                // Reverse to show latest first
+                [...data.trade_history].reverse().forEach(h => {
+                    const pnlSign = h.pnl >= 0 ? '+' : '-';
+                    const pnlStr = `₹${formatCurrency(Math.abs(h.pnl))}`;
+                    const colorClass = formatColor(h.pnl);
+
+                    histBody.append(`
+                        <tr class="border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 transition-colors cursor-pointer group" onclick="openTradeDetails('${h.id}')">
+                            <td class="px-6 py-4">
+                                <span class="font-medium text-white block group-hover:text-blue-400 transition-colors">${h.symbol} <span class="text-xs text-slate-500 font-normal ml-1">(Click for chart)</span></span>
+                                <span class="text-xs text-slate-500">${h.reason}</span>
+                            </td>
+                            <td class="px-6 py-4 text-slate-400 text-xs">${h.entry_time}</td>
+                            <td class="px-6 py-4 text-slate-400 text-xs">${h.exit_time}</td>
+                            <td class="px-6 py-4 text-slate-300">₹${formatCurrency(h.entry_price)}</td>
+                            <td class="px-6 py-4 text-slate-300">₹${formatCurrency(h.exit_price)}</td>
+                            <td class="px-6 py-4 text-right font-bold ${colorClass}">${pnlSign}${pnlStr}</td>
+                        </tr>
+                    `);
+                });
+            }
+        }
+
+        function fetchStatus() {
+            $.get('/api/bot/status', function(res) {
+                if(res.status === 'success') {
+                    updateDashboard(res.data);
+                }
+            });
+        }
+
+        $('#btn-start-bot').click(function() {
+            $.post('/api/bot/start', function(res) {
+                if(res.status === 'success') {
+                    showToast('Bot started successfully!', 'success');
+                    fetchStatus();
+                }
+            });
+        });
+
+        $('#btn-stop-bot').click(function() {
+            $.post('/api/bot/stop', function(res) {
+                if(res.status === 'success') {
+                    showToast('Bot stopped.', 'success');
+                    fetchStatus();
+                }
+            });
+        });
+
+        // Initial fetch and poll
+        fetchStatus();
+        pollInterval = setInterval(fetchStatus, 5000); // Poll every 5s
+    });
+</script>
+{% endblock %}

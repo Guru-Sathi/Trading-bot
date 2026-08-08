@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}OI Divergence | Strategy Detail{% endblock %}
+
+{% block extra_head %}
+<!-- DataTables CSS for modern look -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<style>
+    /* Customizing DataTables to fit the dark theme */
+    .dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_filter, .dataTables_wrapper .dataTables_info, .dataTables_wrapper .dataTables_processing, .dataTables_wrapper .dataTables_paginate {
+        color: #94a3b8; /* slate-400 */
+        margin-bottom: 1rem;
+    }
+    .dataTables_wrapper .dataTables_filter input {
+        background-color: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 0.375rem;
+        color: #f8fafc;
+        padding: 0.25rem 0.75rem;
+        margin-left: 0.5rem;
+    }
+    table.dataTable.no-footer {
+        border-bottom: 1px solid #334155;
+    }
+    table.dataTable tbody tr {
+        background-color: transparent;
+    }
+    table.dataTable tbody tr.odd {
+        background-color: rgba(30, 41, 59, 0.3);
+    }
+    table.dataTable tbody tr:hover {
+        background-color: rgba(245, 158, 11, 0.1); /* amber hover */
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+        color: #94a3b8 !important;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+        color: #fff !important;
+        background: #f59e0b !important;
+        border: 1px solid #f59e0b !important;
+    }
+    /* Loading Spinner */
+    .loader {
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-left-color: #f59e0b;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="px-4 py-8 sm:px-0">
+
+    <!-- Breadcrumb & Header -->
+    <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <nav class="flex mb-4" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 md:space-x-3 text-sm text-slate-400">
+                    <li class="inline-flex items-center hover:text-amber-400 transition-colors">
+                        <a href="/">Strategies</a>
+                    </li>
+                    <li>
+                        <div class="flex items-center">
+                            <svg class="w-3 h-3 mx-1 text-slate-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                            </svg>
+                            <span class="ml-1 text-slate-300">OI Divergence</span>
+                        </div>
+                    </li>
+                </ol>
+            </nav>
+            <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+                <div class="p-2 bg-amber-500/20 rounded-lg">
+                    <svg class="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                </div>
+                Options OI Divergence
+            </h1>
+        </div>
+
+        <!-- Actions -->
+        <div>
+            <button id="refresh-btn" class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-amber-600 hover:bg-amber-700 shadow-[0_0_15px_rgba(245,158,11,0.5)] transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:ring-offset-slate-900">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                Refresh Data
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 hidden" id="stats-container">
+        <div class="glass-panel p-5 rounded-xl border-l-4 border-l-blue-500">
+            <div class="flex justify-between items-start">
+                <p class="text-sm font-medium text-slate-400">NIFTY 50 Spot</p>
+                <span id="stat-spot-pct" class="text-xs font-bold px-2 py-1 rounded bg-slate-800">-</span>
+            </div>
+            <p class="mt-2 text-3xl font-bold text-white" id="stat-spot">-</p>
+        </div>
+        <div class="glass-panel p-5 rounded-xl border-l-4 border-l-amber-500">
+            <p class="text-sm font-medium text-slate-400">Overall Sentiment (PCR & Vol)</p>
+            <div class="flex items-baseline gap-3 mt-2">
+                <p class="text-2xl font-bold text-amber-400" id="stat-sentiment">-</p>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">OI PCR: <span id="stat-oi-pcr" class="font-bold text-slate-300">-</span> | Vol PCR: <span id="stat-vol-pcr" class="font-bold text-slate-300">-</span></p>
+        </div>
+        <div class="glass-panel p-5 rounded-xl border-l-4 border-l-rose-500">
+            <p class="text-sm font-medium text-slate-400">Resistance (Max Call OI)</p>
+            <p class="mt-2 text-3xl font-bold text-rose-400" id="stat-res">-</p>
+        </div>
+        <div class="glass-panel p-5 rounded-xl border-l-4 border-l-emerald-500">
+            <p class="text-sm font-medium text-slate-400">Support (Max Put OI)</p>
+            <p class="mt-2 text-3xl font-bold text-emerald-400" id="stat-sup">-</p>
+        </div>
+        <div class="col-span-2 md:col-span-4 glass-panel p-4 rounded-xl flex items-center justify-between border-t-2 border-t-purple-500">
+             <div>
+                 <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Estimated Max Pain Strike</p>
+                 <p class="text-2xl font-bold text-purple-400" id="stat-max-pain">-</p>
+             </div>
+             <div class="text-right">
+                 <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Expiry</p>
+                 <p class="text-lg font-semibold text-white" id="stat-expiry">-</p>
+             </div>
+        </div>
+    </div>
+
+    <!-- Data Section -->
+    <div class="glass-panel rounded-2xl shadow-xl p-1 sm:p-4">
+
+        <!-- Loading State -->
+        <div id="loading-state" class="py-16 flex flex-col items-center justify-center mb-6">
+            <div class="loader mb-4" id="main-loader"></div>
+            <p class="text-slate-400 mb-2" id="loading-text">Deep analyzing NIFTY Options Chain...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="hidden py-12 px-4 text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-4">
+                <svg class="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-white mb-2">Failed to load data</h3>
+            <p class="text-slate-400 mb-6 max-w-md mx-auto" id="error-message">Check your API credentials and environment variables.</p>
+        </div>
+
+        <!-- Table State -->
+        <div id="table-container" class="hidden overflow-x-auto w-full p-2">
+            <table id="oidiv-table" class="w-full text-center text-sm text-slate-300">
+                <thead class="text-xs text-slate-400 uppercase bg-slate-800/50">
+                    <tr>
+                        <th class="px-4 py-3 rounded-tl-lg text-rose-300 border-b border-rose-900/50">CALL OI & VOL</th>
+                        <th class="px-4 py-3 text-rose-300 border-b border-rose-900/50">CALL LTP</th>
+                        <th class="px-4 py-3 text-white border-b border-slate-700 bg-slate-800/80">STRIKE PRICE</th>
+                        <th class="px-4 py-3 text-emerald-300 border-b border-emerald-900/50">PUT LTP</th>
+                        <th class="px-4 py-3 text-emerald-300 border-b border-emerald-900/50">PUT OI & VOL</th>
+                        <th class="px-4 py-3 border-b border-slate-700">In-Depth Signal</th>
+                        <th class="px-4 py-3 rounded-tr-lg border-b border-slate-700 text-center">Save</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Rows populated by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+
+        function formatCurrency(val) {
+            return parseFloat(val).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+        }
+
+        function formatNumber(val) {
+             if (val >= 10000000) return (val / 10000000).toFixed(2) + ' Cr';
+             if (val >= 100000) return (val / 100000).toFixed(2) + ' L';
+             return parseFloat(val).toLocaleString('en-IN');
+        }
+
+        function getPCRColor(pcr) {
+             if (pcr > 1.2) return 'text-emerald-400 font-bold';
+             if (pcr < 0.8) return 'text-rose-400 font-bold';
+             return 'text-slate-300';
+        }
+
+        function getPctColor(pct) {
+             if (pct > 0) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+             if (pct < 0) return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+             return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+        }
+
+        function fetchChainData() {
+            // Reset UI and State
+            $('#loading-state').show();
+            $('#error-state').hide();
+            $('#table-container').hide();
+            $('#stats-container').hide();
+            $('#refresh-btn').prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
+
+            $('#table-body').empty();
+
+            $.ajax({
+                url: '/api/oi-divergence/analyze',
+                method: 'GET',
+                success: function(response) {
+                    if (response.status === 'success') {
+                        const data = response.data;
+
+                        // 1. Populate Dashboard
+                        $('#stat-spot').text('₹' + formatCurrency(data.spot_price));
+
+                        const pctStr = (data.spot_pct > 0 ? '+' : '') + data.spot_pct.toFixed(2) + '%';
+                        $('#stat-spot-pct').text(pctStr).attr('class', `text-xs font-bold px-2 py-1 border rounded ${getPctColor(data.spot_pct)}`);
+
+                        $('#stat-oi-pcr').text(data.overall_oi_pcr.toFixed(2));
+                        $('#stat-vol-pcr').text(data.overall_vol_pcr.toFixed(2));
+                        $('#stat-sentiment').text(data.sentiment);
+
+                        // Style sentiment deeply
+                        $('#stat-sentiment').removeClass('text-amber-400 text-emerald-400 text-rose-400 text-pink-400 text-orange-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)] drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]');
+
+                        if(data.sentiment.includes('Bullish')) $('#stat-sentiment').addClass('text-emerald-400');
+                        else if(data.sentiment.includes('Bearish')) $('#stat-sentiment').addClass('text-rose-400');
+                        else if(data.sentiment.includes('Short Squeeze')) $('#stat-sentiment').addClass('text-pink-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]');
+                        else if(data.sentiment.includes('Trapped Puts')) $('#stat-sentiment').addClass('text-orange-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]');
+                        else $('#stat-sentiment').addClass('text-amber-400');
+
+                        $('#stat-res').text(formatCurrency(data.resistance));
+                        $('#stat-sup').text(formatCurrency(data.support));
+                        $('#stat-max-pain').text(formatCurrency(data.max_pain));
+                        $('#stat-expiry').text(data.expiry);
+
+                        // 2. Populate Chain
+                        const tbody = $('#table-body');
+                        data.chain.forEach(row => {
+                             let strikeClass = "font-bold text-white bg-slate-800/50";
+                             if (row.is_atm) {
+                                  strikeClass = "font-extrabold text-amber-400 bg-amber-500/10 border-y border-amber-500/30";
+                             }
+
+                             // Calculate relative bar widths for visual effect
+                             const max_ce = data.chain.reduce((max, r) => Math.max(max, r.ce_oi), 0);
+                             const max_pe = data.chain.reduce((max, r) => Math.max(max, r.pe_oi), 0);
+
+                             const ce_pct = max_ce > 0 ? (row.ce_oi / max_ce) * 100 : 0;
+                             const pe_pct = max_pe > 0 ? (row.pe_oi / max_pe) * 100 : 0;
+
+                             const ce_bar = `<div class="absolute right-0 top-0 bottom-0 bg-rose-500/10 z-0" style="width: ${ce_pct}%;"></div>`;
+                             const pe_bar = `<div class="absolute left-0 top-0 bottom-0 bg-emerald-500/10 z-0" style="width: ${pe_pct}%;"></div>`;
+
+                             let sigHtml = `<span class="text-slate-400 text-xs">${row.signal}</span>`;
+                             if (row.signal.includes('Trapped Put') || row.signal.includes('Bearish')) {
+                                 sigHtml = `<span class="px-2 py-1 rounded text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 shadow-[0_0_10px_rgba(244,63,94,0.2)]">${row.signal}</span>`;
+                             } else if (row.signal.includes('Short Squeeze') || row.signal.includes('Bullish')) {
+                                 sigHtml = `<span class="px-2 py-1 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">${row.signal}</span>`;
+                             } else if (row.signal.includes('Support')) {
+                                 sigHtml = `<span class="px-2 py-1 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-300">${row.signal}</span>`;
+                             } else if (row.signal.includes('Resistance')) {
+                                 sigHtml = `<span class="px-2 py-1 rounded text-xs font-semibold bg-rose-500/10 text-rose-300">${row.signal}</span>`;
+                             }
+
+                             const saveBtn = `<button onclick="window.addToWatchlist('NIFTY ${formatCurrency(row.strike)} Options', 'Spot: ₹${formatCurrency(data.spot_price)}', 'OI Divergence', 'Action', '${row.signal.replace(/[^a-zA-Z ]/g, "").trim()}')" class="p-1 text-slate-400 hover:text-amber-400 hover:bg-amber-500/20 rounded transition-colors" title="Save to Watchlist"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg></button>`;
+
+                             const tr = `
+                                <tr class="border-b border-slate-700/30 hover:bg-slate-800/30 transition-colors">
+                                    <td class="px-4 py-2 relative text-right">
+                                        ${ce_bar}
+                                        <div class="relative z-10 flex flex-col items-end">
+                                            <span class="text-rose-200 font-medium">${formatNumber(row.ce_oi)}</span>
+                                            <span class="text-xs text-rose-400/70">Vol: ${formatNumber(row.ce_vol)}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-2 text-slate-300">
+                                        <div class="flex flex-col items-center">
+                                            <span>₹${formatCurrency(row.ce_ltp)}</span>
+                                            <span class="text-[10px] ${getPctColor(row.ce_chg)} px-1 rounded">${(row.ce_chg>0?'+':'')}${row.ce_chg.toFixed(1)}%</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-2 text-lg ${strikeClass}">${formatCurrency(row.strike)}</td>
+                                    <td class="px-4 py-2 text-slate-300">
+                                        <div class="flex flex-col items-center">
+                                            <span>₹${formatCurrency(row.pe_ltp)}</span>
+                                            <span class="text-[10px] ${getPctColor(row.pe_chg)} px-1 rounded">${(row.pe_chg>0?'+':'')}${row.pe_chg.toFixed(1)}%</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-2 relative text-left">
+                                        ${pe_bar}
+                                        <div class="relative z-10 flex flex-col items-start">
+                                            <span class="text-emerald-200 font-medium">${formatNumber(row.pe_oi)}</span>
+                                            <span class="text-xs text-emerald-400/70">Vol: ${formatNumber(row.pe_vol)}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-2 text-center">${sigHtml}</td>
+                                    <td class="px-4 py-2 text-center">${saveBtn}</td>
+                                </tr>
+                             `;
+                             tbody.append(tr);
+                        });
+
+                        $('#loading-state').hide();
+                        $('#stats-container').removeClass('hidden').show();
+                        $('#table-container').removeClass('hidden').fadeIn();
+
+                    } else {
+                        showError(response.message);
+                    }
+                },
+                error: function(xhr) {
+                    let msg = "An unknown error occurred.";
+                    if(xhr.responseJSON && xhr.responseJSON.message) {
+                        msg = xhr.responseJSON.message;
+                    }
+                    showError(msg);
+                },
+                complete: function() {
+                    $('#refresh-btn').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
+                }
+            });
+        }
+
+        function showError(msg) {
+            $('#loading-state').hide();
+            $('#error-message').text(msg);
+            $('#error-state').removeClass('hidden').show();
+        }
+
+        // Initial fetch
+        fetchChainData();
+
+        // Refresh click
+        $('#refresh-btn').on('click', function() {
+            fetchChainData();
+        });
+    });
+</script>
+{% endblock %}
